@@ -1,20 +1,17 @@
-# Claude Plugin
+# Claude Marketplace
 
 A plugin for Claude Code containing personal AI-powered development skills.
 
 ## Installation
 
-### From GitHub
-
-```bash
-cc plugin add https://github.com/ntwilson/claude-plugin
-```
-
-### Local Installation
-
-```bash
-git clone https://github.com/ntwilson/claude-plugin ~/.claude/plugins/claude-plugin
-```
+Install these via 
+- `/plugin marketplace add ntwilson/claude-marketplace`
+- **optional:** in the Claude Code UI, enable auto-update for the ntwilson marketplace:
+  - `/plugin`
+  - arrow right to "Marketplaces"
+  - select ntw-plugins
+  - select "Enable auto-update"
+- `/plugin install ntw-plugin@ntw-plugins`
 
 ## Skills
 

@@ -1,0 +1,13 @@
+{
+  "name": "ntw-plugins",
+  "owner": {
+    "name": "Nathan Wilson"
+  },
+  "plugins": [
+    {
+      "name": "ntw-plugin",
+      "source": "./plugins/ntw-plugin",
+      "description": "Adds personalized skills for software development"
+    }
+  ]
+}
