@@ -7,13 +7,13 @@ A plugin for Claude Code containing personal AI-powered development skills.
 ### From GitHub
 
 ```bash
-cc plugin add https://github.com/yourusername/claude-plugin
+cc plugin add https://github.com/ntwilson/claude-plugin
 ```
 
 ### Local Installation
 
 ```bash
-git clone https://github.com/yourusername/claude-plugin ~/.claude/plugins/claude-plugin
+git clone https://github.com/ntwilson/claude-plugin ~/.claude/plugins/claude-plugin
 ```
 
 ## Skills
