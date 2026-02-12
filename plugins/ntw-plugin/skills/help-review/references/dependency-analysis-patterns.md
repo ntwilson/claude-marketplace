@@ -6,7 +6,59 @@ This reference provides detailed strategies for determining dependency order in 
 
 **Callees before callers**: A function should be presented before any function that calls it. This allows reviewers to understand lower-level building blocks before seeing how they're composed.
 
-## Dependency Analysis Strategies
+## F# Dependency Order Shortcuts
+
+**For F# projects, dependency analysis is significantly simpler** because the language and project system enforce dependency order:
+
+### Within a Project: Read the .fsproj File
+
+The `.fsproj` file lists all `.fs` files in dependency order. You can simply use this ordering directly:
+
+```xml
+<ItemGroup>
+  <Compile Include="DataStructures.fs" />
+  <Compile Include="Validation.fs" />
+  <Compile Include="BusinessLogic.fs" />
+  <Compile Include="Program.fs" />
+</ItemGroup>
+```
+
+**Result:** Present files in the exact order they appear in the `.fsproj` file.
+
+### Within a File: All Contents Are Already in Dependency Order
+
+F# enforces that all definitions must appear before their usage within a file. This means:
+- Functions are already ordered with callees before callers
+- Types are already defined before functions that use them
+- No need to analyze call graphs or imports within a single file
+
+**Result:** Present changed functions/types in the order they appear in the file.
+
+### Between Projects: Check .fsproj References
+
+Project dependencies are declared explicitly in `.fsproj` files:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\DataLayer\DataLayer.fsproj" />
+  <ProjectReference Include="..\BusinessLayer\BusinessLayer.fsproj" />
+</ItemGroup>
+```
+
+**Result:** Present projects in dependency order based on `ProjectReference` elements.
+
+### F# Review Strategy Summary
+
+For F# codebases, instead of complex dependency analysis:
+
+1. **Read the .fsproj file(s)** to get file ordering
+2. **List changed files** in the order they appear in .fsproj
+3. **Within each file**, present changes in the order they appear
+4. **Done** - no call graph analysis, import tracking, or topological sorting needed
+
+**This approach is faster, simpler, and guaranteed to be correct** because it leverages the F# compiler's own dependency enforcement.
+
+## Dependency Analysis Strategies (For Non-F# Languages)
 
 ### Strategy 1: Import/Using Analysis
 

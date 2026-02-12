@@ -255,6 +255,13 @@ User: "Review changes from main to feature-auth"
 
 To determine dependency order:
 
+**For F# projects (simplified approach):**
+1. **Read the .fsproj file** to get file ordering (files are already in dependency order)
+2. **List changed files** in the order they appear in .fsproj
+3. **Within each file**, present changes in the order they appear (F# enforces dependency order within files)
+4. No need for call graph analysis, import tracking, or topological sorting
+
+**For other languages:**
 1. **Read all changed files** to build full context
 2. **Identify imports/dependencies** in each file
 3. **Build dependency graph** of changed functions

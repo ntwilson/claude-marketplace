@@ -1,6 +1,6 @@
 # Claude Marketplace
 
-A plugin for Claude Code containing personal AI-powered development skills.
+A Claude Code marketplace containing plugins with AI-powered development skills.
 
 ## Installation
 
@@ -65,15 +65,15 @@ Provides hierarchical, dependency-ordered code review summaries.
 - Git for branch comparisons
 - PowerShell Core (for helper scripts)
 
-See [skills/help-review/](skills/help-review/) for detailed documentation.
+See [plugins/ntw-plugin/skills/help-review/](plugins/ntw-plugin/skills/help-review/) for detailed documentation.
 
 ## Adding More Skills
 
-This plugin is designed to grow. To add new skills:
+Each plugin lives under `plugins/<plugin-name>/` and can contain multiple skills. To add a new skill to an existing plugin:
 
-1. Create a new directory in `skills/`:
+1. Create a new directory under the plugin's `skills/` folder:
    ```bash
-   mkdir -p skills/new-skill-name
+   mkdir -p plugins/ntw-plugin/skills/new-skill-name
    ```
 
 2. Create `SKILL.md` with frontmatter:
@@ -89,7 +89,7 @@ This plugin is designed to grow. To add new skills:
 
 3. Add supporting resources as needed:
    ```
-   skills/new-skill-name/
+   plugins/ntw-plugin/skills/new-skill-name/
    ├── SKILL.md
    ├── references/      # Detailed docs
    ├── examples/        # Working examples
@@ -98,20 +98,24 @@ This plugin is designed to grow. To add new skills:
 
 4. Skills are automatically discovered - no manifest updates needed!
 
+To add an entirely new plugin to the marketplace, create a new directory under `plugins/` with its own `.claude-plugin/plugin.json` manifest.
+
 ## Development
 
 ### Project Structure
 
 ```
-claude-plugin/
-├── .claude-plugin/
-│   └── plugin.json      # Plugin manifest
-├── skills/
-│   └── help-review/     # Code review skill
-│       ├── SKILL.md     # Main skill file
-│       ├── examples/    # Example outputs
-│       ├── references/  # Detailed patterns
-│       └── scripts/     # Helper scripts
+claude-marketplace/
+├── plugins/
+│   └── ntw-plugin/              # A plugin in the marketplace
+│       ├── .claude-plugin/
+│       │   └── plugin.json      # Plugin manifest
+│       └── skills/
+│           └── help-review/     # Code review skill
+│               ├── SKILL.md     # Main skill file
+│               ├── examples/    # Example outputs
+│               ├── references/  # Detailed patterns
+│               └── scripts/     # Helper scripts
 ├── README.md
 └── LICENSE
 ```
@@ -119,38 +123,19 @@ claude-plugin/
 ### Testing Locally
 
 ```bash
-# Test the plugin
-cc --plugin-dir /path/to/claude-plugin
+# Install the marketplace from a local path
+/plugin marketplace add /path/to/claude-marketplace
 
-# Or symlink to plugins directory
-ln -s /path/to/claude-plugin ~/.claude/plugins/claude-plugin
+# Then install a plugin from it
+/plugin install ntw-plugin@ntw-plugins
 ```
 
 ## Contributing
 
-Contributions welcome! To contribute a new skill:
+Contributions welcome! To contribute a new skill or plugin:
 
 1. Fork the repository
-2. Create a new skill directory in `skills/`
-3. Follow the skill structure pattern (see existing skills)
-4. Test thoroughly
+2. Add a skill to an existing plugin under `plugins/<plugin-name>/skills/`, or create a new plugin under `plugins/`
+3. Follow the skill/plugin structure patterns (see existing plugins)
+4. Test locally
 5. Submit a pull request
-
-## License
-
-MIT - See [LICENSE](LICENSE) file
-
-## Version
-
-Current version: 0.1.0
-
-## Roadmap
-
-Future skills planned:
-- Test generation assistance
-- API documentation generation
-- Performance analysis
-- Security audit helpers
-- Refactoring assistance
-
-Suggestions welcome via issues!
