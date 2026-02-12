@@ -106,7 +106,7 @@ Construct a multi-level hierarchy:
 
 ### Step 6: Identify Review Focus Areas
 
-Create a section (at top or bottom of summary) listing:
+Create a section immediately after the overall summary listing:
 
 **Suspicious or Noteworthy Items:**
 - Potential bugs or logic errors
@@ -132,6 +132,17 @@ Structure the output as markdown with clear hierarchy:
 ## Overall Changes
 [1-2 sentence summary of entire changeset]
 
+## Review Focus
+
+### ⚠️ Items Requiring Attention
+- [Suspicious item 1]
+- [Security concern]
+- [Complex logic requiring scrutiny]
+
+### 📍 Priority Files/Functions
+- **`file.ext:functionName`** - [Why this needs closer review]
+- **`other.ext:ClassName`** - [Why this needs closer review]
+
 ## Files Changed (in dependency order)
 
 ### `path/to/file1.ext`
@@ -148,17 +159,6 @@ Structure the output as markdown with clear hierarchy:
 
 ### `path/to/file2.ext`
 [Continue pattern...]
-
-## Review Focus
-
-### ⚠️ Items Requiring Attention
-- [Suspicious item 1]
-- [Security concern]
-- [Complex logic requiring scrutiny]
-
-### 📍 Priority Files/Functions
-- **`file.ext:functionName`** - [Why this needs closer review]
-- **`other.ext:ClassName`** - [Why this needs closer review]
 ```
 
 ## Formatting Guidelines
@@ -319,8 +319,8 @@ Keep each summary at 1-2 sentences by:
 4. **Read files** → Load changed files for full context
 5. **Analyze dependencies** → Build dependency graph
 6. **Order output** → Sort by dependencies (or PR body order)
-7. **Generate hierarchy** → Overall → Files → Modules → Functions
-8. **Identify focus areas** → Suspicious items and priority areas
+7. **Identify focus areas** → Suspicious items and priority areas
+8. **Generate hierarchy** → Overall → Focus Areas → Files → Modules → Functions
 9. **Format output** → Markdown with clear visual hierarchy
 
 Focus on creating actionable, easy-to-navigate summaries that help reviewers understand complex changes efficiently.

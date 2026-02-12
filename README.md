@@ -40,19 +40,19 @@ Provides hierarchical, dependency-ordered code review summaries.
 ## Overall Changes
 [1-2 sentence summary]
 
-## Files Changed (in dependency order)
-### `file.ext`
-[File summary]
-
-#### Function: `functionName(params): returnType`
-[Function change summary]
-
 ## Review Focus
 ### ⚠️ Items Requiring Attention
 - [Security/bugs/breaking changes]
 
 ### 📍 Priority Files/Functions
 - **`file:function`** - [Why it needs review]
+
+## Files Changed (in dependency order)
+### `file.ext`
+[File summary]
+
+#### Function: `functionName(params): returnType`
+[Function change summary]
 ```
 
 **Input formats:**
