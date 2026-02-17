@@ -17,13 +17,15 @@ Install these via
 
 ### help-review
 
-Provides hierarchical, dependency-ordered code review summaries.
+Provides interactive, dependency-ordered code review walkthroughs.
 
 **Features:**
-- Hierarchical summaries from overall changes → files → modules → functions
-- Dependency ordering (callees before callers)
+- Two-phase interactive review: overview first, then element-by-element walkthrough
+- Dependency ordering (callees before callers) for file order
+- Inline diffs for small changes (≤15 lines)
+- Suspicious items surfaced inline at the relevant code element
+- Ask questions at any point during the walkthrough
 - Multi-format input: PR numbers, PR with custom base, or branch comparisons
-- Review focus highlighting suspicious code and priority areas
 - Cross-platform PowerShell scripts
 
 **Usage:**
@@ -33,27 +35,15 @@ Provides hierarchical, dependency-ordered code review summaries.
 "Review changes from main to feature-branch"
 ```
 
-**Output structure:**
-```markdown
-# Code Review Summary
+**Phase 1 — Overview (shown immediately):**
+- 1-5 sentence summary of all changes
+- List of changed files with per-file summaries
 
-## Overall Changes
-[1-2 sentence summary]
-
-## Review Focus
-### ⚠️ Items Requiring Attention
-- [Security/bugs/breaking changes]
-
-### 📍 Priority Files/Functions
-- **`file:function`** - [Why it needs review]
-
-## Files Changed (in dependency order)
-### `file.ext`
-[File summary]
-
-#### Function: `functionName(params): returnType`
-[Function change summary]
-```
+**Phase 2 — Walkthrough (on "next"):**
+- One code element at a time (function, type, etc.)
+- Diff printed inline if ≤15 lines
+- Suspicious items flagged at the relevant element
+- Ask questions at any step, say "next" to continue
 
 **Input formats:**
 1. PR number only: `"Review PR 123"`

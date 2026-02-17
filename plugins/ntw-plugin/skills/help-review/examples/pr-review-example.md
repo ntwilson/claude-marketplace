@@ -1,58 +1,155 @@
-# Code Review Summary - PR #123: Add Weather Distribution Caching
+# Example: Interactive PR Review - PR #123: Add Weather Distribution Caching
 
-## Overall Changes
-Implements in-memory caching for weather probability distributions to reduce database queries, improving performance for repeated forecast point analyses by ~60%.
+## Phase 1: Initial Overview
+
+> User: "Help review PR 123"
+
+# Code Review Summary
+
+Implements in-memory caching for weather probability distributions to reduce database queries, improving performance for repeated forecast point analyses by ~60%. Adds cache key types, a thread-safe cache manager module, and integrates caching into the existing data assembly layer.
 
 ## Files Changed (in dependency order)
+1. **`OneInN/DataStructures.fs`** - Adds cache key types and cache entry record for storing distribution lookup results with timestamp metadata.
+2. **`OneInN/CacheManager.fs`** - New module for managing in-memory cache with thread-safe operations and automatic expiration.
+3. **`OneInN/DataAssembly.fs`** - Modifies database query functions to check cache before hitting database and populate cache on miss.
+4. **`OneInN/Program.fs`** - Initializes cache on startup and adds background task for periodic cache cleanup.
 
-### `OneInN/DataStructures.fs`
-Adds cache key types and cache entry record for storing distribution lookup results with timestamp metadata.
+Say **next** to begin walking through individual changes.
 
-#### Type: `CacheKey`
+---
+
+## Phase 2: Walkthrough
+
+> User: "next"
+
+## `OneInN/DataStructures.fs`
+Adds two new types to support the caching layer: a discriminated union for cache keys and a generic record for cache entries with TTL metadata.
+
+### Type: `CacheKey`
+
+```diff
++type CacheKey =
++  | ForecastPointKey of ForecastPointId
++  | WeatherStationKey of WeatherStationId
+```
+
 New discriminated union with cases for `ForecastPointKey` and `WeatherStationKey` to uniquely identify cache entries.
 
-#### Type: `CacheEntry<'T>`
-New record type containing cached value, timestamp, and expiration TTL for managing cache lifecycle.
+---
 
-### `OneInN/CacheManager.fs`
-Introduces new module for managing in-memory cache with thread-safe operations and automatic expiration.
+> User: "next"
 
-#### Function: `createCache: unit -> Cache<CacheKey, CacheEntry<Distribution>>`
-Creates concurrent dictionary-backed cache instance for thread-safe access.
+### Type: `CacheEntry<'T>`
 
-#### Function: `tryGet: CacheKey -> Cache<'K,'V> -> Option<'V>`
+```diff
++type CacheEntry<'T> = {
++  Value: 'T
++  CachedAt: Instant
++  ExpiresAt: Instant
++}
+```
+
+Generic record containing cached value, timestamp, and expiration for managing cache lifecycle.
+
+---
+
+> User: "next"
+
+## `OneInN/CacheManager.fs`
+New module introducing a concurrent-dictionary-backed cache with thread-safe get/set operations and a periodic eviction function for expired entries.
+
+### Function: `createCache: unit -> Cache<CacheKey, CacheEntry<Distribution>>`
+
+```diff
++let createCache () =
++  ConcurrentDictionary<CacheKey, CacheEntry<Distribution>>()
+```
+
+Creates a concurrent dictionary-backed cache instance for thread-safe access.
+
+---
+
+> User: "next"
+
+### Function: `tryGet: CacheKey -> Cache<'K,'V> -> Option<'V>`
+
+```diff
++let tryGet key (cache: Cache<'K,'V>) =
++  match cache.TryGetValue(key) with
++  | true, entry when entry.ExpiresAt > now() -> Some entry
++  | _ -> None
+```
+
 Attempts to retrieve value from cache, returning None if expired or missing.
 
-#### Function: `set: CacheKey -> 'V -> TimeSpan -> Cache<'K,'V> -> unit`
+---
+
+> User: "next"
+
+### Function: `set: CacheKey -> 'V -> TimeSpan -> Cache<'K,'V> -> unit`
+
+```diff
++let set key value ttl (cache: Cache<'K,'V>) =
++  let entry = { Value = value; CachedAt = now(); ExpiresAt = now() + ttl }
++  cache.[key] <- entry
+```
+
 Stores value in cache with specified TTL, automatically calculating expiration timestamp.
 
-#### Function: `evictExpired: Cache<'K,CacheEntry<'V>> -> unit`
-Removes all expired entries from cache, called periodically by background task.
+---
 
-### `OneInN/DataAssembly.fs`
-Modifies database query functions to check cache before hitting database and populate cache on miss.
+> User: "next"
 
-#### Function: `retrieveDistribution: CacheKey -> HubContext -> io<ResultTrace<Distribution>>`
+### Function: `evictExpired: Cache<'K,CacheEntry<'V>> -> unit`
+
+Removes all expired entries from cache by iterating keys and removing those past expiration. Called periodically by a background task.
+
+⚠️ **Thread safety concern**: This function iterates and modifies the concurrent dictionary simultaneously. While `ConcurrentDictionary` supports concurrent reads/writes, iterating while removing can skip entries or encounter snapshot inconsistencies under heavy load. Consider using `TryRemove` with a snapshot of keys instead.
+
+---
+
+> User: "Is that actually a problem with ConcurrentDictionary?"
+
+ConcurrentDictionary's enumerator doesn't throw on concurrent modification, but it may miss entries added during iteration or visit entries multiple times. For an eviction function this is generally acceptable — missed entries will be caught on the next eviction cycle. However, if eviction correctness is critical (e.g., memory pressure), snapshotting keys first with `cache.Keys |> Seq.toList` before iterating would be more predictable.
+
+---
+
+> User: "next"
+
+## `OneInN/DataAssembly.fs`
+Modifies the main data retrieval function to attempt cache lookup before querying the database. On cache miss, the database result is stored in cache with a 1-hour TTL.
+
+### Function: `retrieveDistribution: CacheKey -> HubContext -> io<ResultTrace<Distribution>>`
+
 Updated to attempt cache lookup before database query, reducing load by ~60% for repeated queries. On cache miss, queries database and populates cache with 1-hour TTL.
 
-### `OneInN/Program.fs`
-Initializes cache on startup and adds background task for periodic cache cleanup.
+⚠️ **No maximum cache size**: The cache can grow unbounded with many unique forecast points. Consider adding a size limit or LRU eviction policy to prevent memory exhaustion in long-running processes.
 
-#### Function: `initializeCache: unit -> Cache<CacheKey, CacheEntry<Distribution>>`
+---
+
+> User: "next"
+
+## `OneInN/Program.fs`
+Adds cache initialization at startup and a background timer that triggers expired-entry eviction every 10 minutes.
+
+### Function: `initializeCache: unit -> Cache<CacheKey, CacheEntry<Distribution>>`
+
+```diff
++let initializeCache () =
++  let cache = CacheManager.createCache()
++  let timer = new Timer(fun _ -> CacheManager.evictExpired cache)
++  timer.Change(TimeSpan.Zero, TimeSpan.FromMinutes(10.0)) |> ignore
++  cache
+```
+
 Creates cache instance and starts background eviction task running every 10 minutes.
 
-#### Function: `main: argv -> int`
-Updated to initialize cache before command processing begins.
+---
 
-## Review Focus
+> User: "next"
 
-### ⚠️ Items Requiring Attention
-- **Thread safety**: `CacheManager.fs:evictExpired` iterates and modifies concurrent dictionary - verify this doesn't cause race conditions under load
-- **Memory bounds**: No maximum cache size implemented - could grow unbounded with many unique forecast points
-- **TTL consistency**: 1-hour TTL in `DataAssembly.fs:retrieveDistribution` is hardcoded - consider making configurable
-- **Cache invalidation**: No mechanism to invalidate cache when underlying distribution data changes in database
+### Function: `main: argv -> int`
 
-### 📍 Priority Files/Functions
-- **`CacheManager.fs:evictExpired`** - Critical for preventing memory leaks; verify concurrent dictionary iteration safety
-- **`DataAssembly.fs:retrieveDistribution`** - Core caching logic; ensure error handling doesn't skip cache population on transient failures
-- **`Program.fs:initializeCache`** - Background task lifecycle; verify proper cleanup on application shutdown
+Updated to call `initializeCache` before command processing begins and pass the cache instance through to data assembly functions.
+
+Review complete.

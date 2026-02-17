@@ -263,6 +263,67 @@ let secondsInDay = 24 * 60 * 60
 
 ### F# Specific
 
+**Always-flag items** — these should be flagged every time they appear in changed code:
+
+**Functions that may throw:**
+```fsharp
+// ⚠️ Always flag: throws on empty collection
+let first = items |> Array.head
+let first = items |> List.head
+let only = items |> Seq.exactlyOne
+
+// ⚠️ Always flag: throws on missing key
+let value = dict.[key]
+let value = map |> Map.find key
+
+// ⚠️ Always flag: throws on None
+let value = someOption |> Option.get
+```
+
+**Mutable declarations:**
+```fsharp
+// ⚠️ Always flag
+let mutable counter = 0
+```
+
+**Mutable collection operations:**
+```fsharp
+// ⚠️ Always flag: in-place mutation
+dict.Add(key, value)
+resizeArray.Add(item)
+hashSet.Remove(item)
+list.Insert(0, item)
+dict.[key] <- newValue
+```
+
+**Non-deterministic operations outside `io { ... }`:**
+```fsharp
+// ⚠️ Always flag when outside io { }
+let now = DateTime.UtcNow
+let id = Guid.NewGuid()
+let envVar = Environment.GetEnvironmentVariable("KEY")
+
+// ✅ OK: inside io { }
+io {
+  let now = DateTime.UtcNow
+  ...
+}
+```
+
+**Side effects outside `io { ... }`:**
+```fsharp
+// ⚠️ Always flag when outside io { }
+let contents = File.ReadAllText(path)
+Console.WriteLine("debug")
+let response = httpClient.GetAsync(url)
+
+// ✅ OK: inside io { }
+io {
+  let! contents = File.ReadAllText(path)
+  ...
+}
+```
+
 **Partial Active Patterns:**
 ```fsharp
 // ⚠️ Suspicious: Partial match in let binding
@@ -285,15 +346,20 @@ let rec processList lst =
   // Missing: | [] -> () base case
 ```
 
-**Inappropriate Use of Mutable:**
-```fsharp
-// ⚠️ Suspicious: Could be immutable
-let mutable results = []
-for item in items do
-  results <- result :: results
+### PureScript Specific
 
-// ✅ Better: Functional approach
-let results = items |> List.map processItem
+**Always-flag items** — these should be flagged every time they appear in changed code:
+
+**Any use of `unsafe` functions:**
+```purescript
+-- ⚠️ Always flag: bypasses type safety
+unsafeCoerce value
+unsafePartial (fromJust maybeValue)
+unsafePerformEffect (log "debug")
+unsafeThrow (error "crash")
+unsafeFreeze mutableArray
+unsafeThaw immutableArray
+-- Any other function with "unsafe" in the name
 ```
 
 ### Python Specific

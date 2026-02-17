@@ -1,67 +1,151 @@
-# Code Review Summary - Branch Comparison: `main...feature-validation-improvements`
+# Example: Interactive Branch Comparison Review - `main...feature-validation-improvements`
 
-## Overall Changes
-Refactors input validation in ValidationComparison to use Result types consistently and adds comprehensive error reporting for invalid comparison parameters.
+## Phase 1: Initial Overview
+
+> User: "Review changes from main to feature-validation-improvements"
+
+# Code Review Summary
+
+Refactors input validation in ValidationComparison to use Result types consistently and adds comprehensive error reporting for invalid comparison parameters. Extracts validation logic into a dedicated module for testability and adds property-based tests.
 
 ## Files Changed (in dependency order)
+1. **`ValidationComparison/DataStructures.fs`** - Adds error discriminated union types for validation failures and expands comparison parameters record with validation rules.
+2. **`ValidationComparison/Validation.fs`** - New module with pure validation functions extracted from Program.fs for testability.
+3. **`ValidationComparison/DataAssembly.fs`** - Updates database query functions to return Result types instead of throwing exceptions.
+4. **`ValidationComparison/ValidationComparisonSpec.fs`** - Adds comprehensive test coverage including property-based tests for validation functions.
+5. **`ValidationComparison/Program.fs`** - Refactors CLI argument processing to use Validation module with detailed error messages.
 
-### `ValidationComparison/DataStructures.fs`
-Adds error discriminated union types for representing validation failures and expands comparison parameters record with validation rules.
+Say **next** to begin walking through individual changes.
 
-#### Type: `ValidationError`
-New discriminated union with cases for `InvalidDateRange`, `MissingWeatherData`, `InsufficientSampleSize`, and `ConfigurationError` to represent all validation failure modes.
+---
 
-#### Type: `ComparisonParameters`
-Adds `minSampleSize` and `maxDateRange` fields with default values to enforce statistical validity constraints.
+## Phase 2: Walkthrough
 
-### `ValidationComparison/Validation.fs`
-New module containing pure validation functions for comparison parameters, extracted from Program.fs for testability.
+> User: "next"
 
-#### Function: `validateDateRange: LocalDate -> LocalDate -> ResultTrace<unit, ValidationError>`
-Validates that date range is positive, not in future, and within maximum allowed range (configurable via ComparisonParameters).
+## `ValidationComparison/DataStructures.fs`
+Adds a new `ValidationError` discriminated union to represent all failure modes, and extends `ComparisonParameters` with configurable validation constraints (`minSampleSize`, `maxDateRange`).
 
-#### Function: `validateSampleSize: int -> int -> ResultTrace<unit, ValidationError>`
-Checks that sample size meets minimum threshold for statistical significance (default: 30 observations).
+### Type: `ValidationError`
 
-#### Function: `validateAll: ComparisonParameters -> ResultTrace<unit, ValidationError list>`
-Composes all validation functions using Result.combine, collecting all errors rather than short-circuiting on first failure.
+```diff
++type ValidationError =
++  | InvalidDateRange of string
++  | MissingWeatherData of string
++  | InsufficientSampleSize of actual: int * required: int
++  | ConfigurationError of string
+```
 
-### `ValidationComparison/DataAssembly.fs`
-Updates database query functions to return Result types instead of throwing exceptions on missing data.
+New discriminated union covering all validation failure modes with descriptive payloads.
 
-#### Function: `retrieveWeatherData: ForecastPointId -> DateRange -> HubContext -> io<ResultTrace<WeatherData list, ValidationError>>`
+---
+
+> User: "next"
+
+### Type: `ComparisonParameters`
+
+```diff
+ type ComparisonParameters = {
+   StartDate: LocalDate
+   EndDate: LocalDate
+   ForecastPoint: ForecastPointId
++  MinSampleSize: int
++  MaxDateRange: Period
+ }
+```
+
+Adds `MinSampleSize` (default: 30) and `MaxDateRange` (default: 10 years) fields to enforce statistical validity constraints.
+
+---
+
+> User: "next"
+
+## `ValidationComparison/Validation.fs`
+New module containing three pure validation functions extracted from Program.fs. Uses Result types and error accumulation via `Result.combine` so all validation failures are reported at once rather than short-circuiting.
+
+### Function: `validateDateRange: LocalDate -> LocalDate -> ResultTrace<unit, ValidationError>`
+
+Validates that date range is positive, not in the future, and within the maximum allowed range.
+
+---
+
+> User: "next"
+
+### Function: `validateSampleSize: int -> int -> ResultTrace<unit, ValidationError>`
+
+```diff
++let validateSampleSize (actual: int) (required: int) =
++  if actual >= required then Ok ()
++  else Error (InsufficientSampleSize (actual, required))
+```
+
+Checks that sample size meets minimum threshold for statistical significance.
+
+---
+
+> User: "next"
+
+### Function: `validateAll: ComparisonParameters -> ResultTrace<unit, ValidationError list>`
+
+Composes all validation functions using `Result.combine`, collecting all errors rather than short-circuiting on first failure.
+
+---
+
+> User: "next"
+
+## `ValidationComparison/DataAssembly.fs`
+Changes the data retrieval function from throwing exceptions on missing data to returning `Error MissingWeatherData` with details about which dates/points are missing.
+
+### Function: `retrieveWeatherData: ForecastPointId -> DateRange -> HubContext -> io<ResultTrace<WeatherData list, ValidationError>>`
+
 Changed from throwing on missing data to returning `Error MissingWeatherData` with details about which dates/points are missing.
 
-### `ValidationComparison/ValidationComparisonSpec.fs`
-Adds comprehensive test coverage for new validation functions with property-based tests.
+⚠️ **Breaking change**: Signature changed from returning `WeatherData list` to `ResultTrace<WeatherData list, ValidationError>`. All call sites must be updated to handle the Result type.
 
-#### Test: `validateDateRange handles edge cases correctly`
+---
+
+> User: "next"
+
+## `ValidationComparison/ValidationComparisonSpec.fs`
+Adds three test groups covering boundary conditions, threshold enforcement, and error accumulation using property-based testing.
+
+### Test: `validateDateRange handles edge cases correctly`
+
 Covers boundary conditions: same-day range, leap years, timezone boundaries, future dates.
 
-#### Test: `validateSampleSize enforces minimum threshold`
+---
+
+> User: "next"
+
+### Test: `validateSampleSize enforces minimum threshold`
+
 Verifies rejection of insufficient samples and acceptance of valid sample sizes.
 
-#### Test: `validateAll accumulates multiple errors`
-Property test ensuring all validation errors are collected when multiple validations fail.
+---
 
-### `ValidationComparison/Program.fs`
-Refactors command-line argument processing to use Validation module and provide detailed error messages.
+> User: "next"
 
-#### Function: `parseAndValidateArgs: string[] -> ResultTrace<ComparisonParameters, ValidationError list>`
-Updated to call Validation.validateAll and format error messages for user display.
+### Test: `validateAll accumulates multiple errors`
 
-#### Function: `main: argv -> int`
-Adds early exit on validation failure with formatted error output showing all validation issues.
+Property test ensuring all validation errors are collected when multiple validations fail simultaneously.
 
-## Review Focus
+---
 
-### ⚠️ Items Requiring Attention
-- **Breaking change**: `DataAssembly.fs:retrieveWeatherData` signature changed - verify all call sites handle Result properly
-- **Error message UX**: `Program.fs:main` error formatting - ensure error messages are actionable for end users
-- **Test coverage**: `ValidationComparisonSpec.fs` uses property-based tests - verify test case generation covers realistic scenarios
-- **Default values**: `DataStructures.fs:ComparisonParameters` defaults (minSampleSize=30, maxDateRange=10 years) - confirm these align with business requirements
+> User: "next"
 
-### 📍 Priority Files/Functions
-- **`DataAssembly.fs:retrieveWeatherData`** - Signature changed; critical to verify all callers updated
-- **`Validation.fs:validateAll`** - Core validation logic; ensure error accumulation works correctly and doesn't miss edge cases
-- **`Program.fs:parseAndValidateArgs`** - User-facing error handling; verify error messages are clear and actionable
+## `ValidationComparison/Program.fs`
+Refactors argument processing to use the new Validation module and formats all validation errors for user-friendly display on early exit.
+
+### Function: `parseAndValidateArgs: string[] -> ResultTrace<ComparisonParameters, ValidationError list>`
+
+Updated to call `Validation.validateAll` and format error messages for user display.
+
+---
+
+> User: "next"
+
+### Function: `main: argv -> int`
+
+Adds early exit on validation failure with formatted error output showing all validation issues at once.
+
+Review complete.

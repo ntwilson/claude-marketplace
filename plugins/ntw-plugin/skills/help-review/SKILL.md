@@ -1,19 +1,19 @@
 ---
 name: help-review
-description: This skill should be used when the user asks to "review a PR", "review pull request", "review changes", "summarize a PR", "analyze code changes", "help review", or provides a GitHub PR number for review. Provides hierarchical, dependency-ordered summaries of code changes with actionable insights.
-version: 0.1.0
+description: This skill should be used when the user asks to "review a PR", "review pull request", "review changes", "summarize a PR", "analyze code changes", "help review", or provides a GitHub PR number for review. Provides interactive, dependency-ordered code review walkthroughs with actionable insights.
 ---
 
 # Code Review Assistant
 
-This skill provides structured, hierarchical code review summaries organized in dependency order to help reviewers understand changes systematically.
+This skill provides interactive, incremental code review walkthroughs organized in dependency order. It starts with a high-level overview, then walks through individual code elements one at a time, allowing the reviewer to ask questions at each step.
 
 ## Purpose
 
-Generate comprehensive code review summaries that:
+Generate interactive code review walkthroughs that:
+- Start with a concise overview, then drill into details on demand
 - Present changes in dependency order (callees before callers)
-- Provide hierarchical summaries from high-level to detailed
-- Highlight suspicious code and areas requiring closer attention
+- Show diffs inline for small changes (≤15 lines)
+- Surface suspicious items inline at the relevant code element, not as a separate section
 - Support multiple input formats (PR number, branches, or PR with custom base)
 
 ## When to Use
@@ -77,88 +77,94 @@ Order files and functions so that:
 
 **Exception:** If the PR body includes a section specifying review order (e.g., "Review order:", "Files to review in order:"), use that order instead.
 
-### Step 5: Build Hierarchical Summary
+### Step 5: Identify Suspicious Items
 
-Construct a multi-level hierarchy:
-
-**Level 1: Overall Summary**
-- 1-2 sentences describing the entire changeset's purpose and scope
-
-**Level 2: File Summaries**
-- For each changed file (in dependency order):
-  - File path
-  - 1-2 sentences summarizing changes in this file
-
-**Level 3: Module/Class Summaries** (conditional)
-- If file contains multiple modules/classes with changes:
-  - Module/class name
-  - 1-2 sentences summarizing changes in this module/class
-- Skip this level if file has only one module/class
-
-**Level 4: Function/Type Summaries**
-- For each changed function, method, or type definition:
-  - Function/type name and signature
-  - 1-2 sentences describing the change
-  - For nested functions, indent under parent function
-
-**Level 5+: Deeper Nesting** (as applicable)
-- Continue hierarchy for nested structures
-
-### Step 6: Identify Review Focus Areas
-
-Create a section immediately after the overall summary listing:
-
-**Suspicious or Noteworthy Items:**
+Before producing any output, scan all changes and identify suspicious or noteworthy items across the **entire** review. These include general concerns:
 - Potential bugs or logic errors
 - Missing error handling
-- Unexpected complexity
-- Breaking changes
 - Security concerns
+- Breaking changes
 - Performance implications
+- Unexpected complexity
 
-**Files/Functions Requiring Closer Attention:**
-- Core business logic changes
-- Complex refactorings
-- High-risk modifications
-- Areas with subtle bugs
+And language-specific items that should **always** be flagged (see "Language-Specific Suspicious Items" below for the full list):
+- In F# files: `mutable` declarations, mutable collection operations, functions that may throw, non-deterministic or side-effectful operations outside `io { ... }`
+- In PureScript files: any use of `unsafe` functions
+
+For the general concerns, keep the list short (typically 2-5 items for a whole PR). The language-specific items should **always** be flagged whenever they appear in changed code, regardless of count. All items are surfaced inline during the walkthrough at the specific code element they relate to — not as a separate up-front section.
+
+### Step 6: Present Initial Overview (Phase 1 output)
+
+Output the following and then **stop and wait** for the user:
+
+1. **Overall summary**: 1-5 sentences describing the entire changeset's purpose and scope
+2. **File list**: Each changed file (in dependency order) with 1-2 sentences summarizing its changes
+3. **Prompt**: Tell the user to say "next" to begin walking through individual changes
+
+### Step 7: Interactive Walkthrough (Phase 2, one element at a time)
+
+When the user says "next", "proceed", "move on", "continue", or similar:
+
+1. **If entering a new file** (first element in that file): print a 1-5 sentence summary of the changes in this file
+2. **Current code element** (function, type definition, method, etc.):
+   - Print the element's name and signature
+   - If the diff for this element is **≤15 lines**, print the diff in a fenced code block
+   - Print 1-5 sentences describing the change
+   - **Only if** this element is one of the few most suspicious items identified in Step 5: print the concern with a ⚠️ prefix
+3. **Stop and wait** — the user may ask questions about this element, or say "next" to continue
+
+Repeat until all code elements across all files are exhausted, then print: "Review complete."
+
+**Batching small changes:** When several consecutive code elements are small (e.g., one-liners or trivial changes), combine them into a single response rather than making the user say "next" for each one. Use your judgement — if there are 3 one-line type alias changes in a row, present them together. They can even span different code elements. The goal is to avoid tedious one-at-a-time pacing for trivial changes.
+
+**Skipping files:** If the user says "next file" or "skip file", skip all remaining elements in the current file and move to the first element of the next file.
+
+**Element ordering:**
+- Files are presented in dependency order (same as the overview)
+- Elements within each file are presented in **top-to-bottom order** as they appear in the file (no dependency analysis needed within a file)
 
 ## Output Format
 
-Structure the output as markdown with clear hierarchy:
+The review is split into two phases:
+
+### Phase 1: Initial Overview
 
 ```markdown
 # Code Review Summary
 
-## Overall Changes
-[1-2 sentence summary of entire changeset]
-
-## Review Focus
-
-### ⚠️ Items Requiring Attention
-- [Suspicious item 1]
-- [Security concern]
-- [Complex logic requiring scrutiny]
-
-### 📍 Priority Files/Functions
-- **`file.ext:functionName`** - [Why this needs closer review]
-- **`other.ext:ClassName`** - [Why this needs closer review]
+[1-5 sentence overall summary]
 
 ## Files Changed (in dependency order)
+1. **`path/to/file1.ext`** - [1-2 sentence summary]
+2. **`path/to/file2.ext`** - [1-2 sentence summary]
+3. **`path/to/file3.ext`** - [1-2 sentence summary]
 
-### `path/to/file1.ext`
-[1-2 sentence file summary]
+Say **next** to begin walking through individual changes.
+```
 
-#### Module: `ModuleName` (if multiple modules)
-[1-2 sentence module summary]
+### Phase 2: Element-by-Element Walkthrough
 
-##### Function: `functionName(params): returnType`
-[1-2 sentence function change summary]
+Each time the user says "next", output one code element:
 
-###### Nested: `nestedFunction()`
-[1-2 sentence nested function summary]
+```markdown
+## `path/to/file1.ext`
+[1-5 sentence file summary — only printed when entering a new file]
 
-### `path/to/file2.ext`
-[Continue pattern...]
+### `functionName: paramType -> returnType`
+
+\`\`\`diff
+[diff if ≤15 lines]
+\`\`\`
+
+[1-5 sentence description of the change]
+
+⚠️ [Suspicious item — only if this is one of the few flagged items]
+```
+
+After the last element:
+
+```markdown
+Review complete.
 ```
 
 ## Formatting Guidelines
@@ -195,7 +201,11 @@ Structure the output as markdown with clear hierarchy:
 - Identify computation expressions (`io { }`, `async { }`)
 - Note type inference impacts (when signatures change)
 - Highlight pipeline changes (`|>`, `>>`)
-- Flag mutable state (`mutable`, `ref`)
+
+### PureScript Codebases
+
+- Recognize module structure and imports
+- Note Effect vs pure function boundaries
 
 ### Python Codebases
 
@@ -210,6 +220,56 @@ Structure the output as markdown with clear hierarchy:
 - Use language-native terminology (module vs class vs namespace)
 - Recognize language-specific risks (null references, type safety, etc.)
 
+## Language-Specific Suspicious Items
+
+These items should **always** be flagged with ⚠️ when they appear in changed code. Unlike general suspicious items (which are limited to 2-5 per PR), these are flagged every time they occur.
+
+### F# Files (`.fs`)
+
+**Functions that may throw an exception** — flag any call to a function that throws on invalid input instead of returning an Option or Result:
+- `Array.head`, `Array.tail`, `Array.last`, `Array.reduce`, `Array.item`, `Array.exactlyOne`
+- `List.head`, `List.tail`, `List.last`, `List.reduce`, `List.item`, `List.exactlyOne`
+- `Seq.head`, `Seq.last`, `Seq.reduce`, `Seq.item`, `Seq.exactlyOne`
+- `Map.find`, `Map.item`
+- `Option.get`
+- `Result.get` (if present)
+- `dict.[key]` (indexer access on dictionaries)
+- Any similar function that throws rather than returning Option/Result
+
+**Mutable variable declarations** — flag any use of `let mutable`:
+```fsharp
+// ⚠️ Always flag
+let mutable counter = 0
+```
+
+**Mutable collection operations** — flag method calls that mutate a collection in place:
+- `.Add(...)`, `.Remove(...)`, `.Clear()`, `.Insert(...)` on `Dictionary`, `ResizeArray`, `HashSet`, `List<T>`, etc.
+- `dict.[key] <- value` (mutation via indexer)
+- `.Push(...)`, `.Pop()`, `.Enqueue(...)`, `.Dequeue()` on `Stack`, `Queue`
+
+**Non-deterministic operations outside `io { ... }`** — flag calls that produce non-deterministic results when they appear outside an `io { }` computation expression:
+- `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`, `DateTimeOffset.UtcNow`
+- `System.Random`, `Guid.NewGuid()`
+- `Environment.GetEnvironmentVariable`
+- `Stopwatch` usage
+
+**Side effects / outside-world interaction outside `io { ... }`** — flag I/O or external interaction when it appears outside an `io { }` computation expression:
+- `System.IO` operations: `File.ReadAllText`, `File.WriteAllText`, `Directory.CreateDirectory`, `StreamReader`, `StreamWriter`, etc.
+- `Console.WriteLine`, `Console.ReadLine`, `printfn` (when not in a script/entry point)
+- Network calls: `HttpClient`, `WebRequest`, etc.
+- Database access outside `io { }`
+- Process launching: `System.Diagnostics.Process`
+
+### PureScript Files (`.purs`)
+
+**Any use of `unsafe` functions** — flag every occurrence of functions containing "unsafe" in the name:
+- `unsafeCoerce`
+- `unsafePartial`
+- `unsafePerformEffect`
+- `unsafeThrow`
+- `unsafeFreeze`, `unsafeThaw`
+- Any other function with `unsafe` in the name
+
 ## Additional Resources
 
 ### Reference Files
@@ -220,9 +280,9 @@ For detailed guidance, consult:
 
 ### Example Outputs
 
-See `examples/` directory for sample review summaries:
-- **`examples/pr-review-example.md`** - Full PR review with hierarchy
-- **`examples/branch-comparison-example.md`** - Branch comparison review
+See `examples/` directory for sample interactive review walkthroughs:
+- **`examples/pr-review-example.md`** - Interactive PR review showing both phases with user Q&A
+- **`examples/branch-comparison-example.md`** - Interactive branch comparison review
 
 ### Helper Scripts
 
@@ -234,19 +294,23 @@ Available in `scripts/` directory:
 **Example 1: Review PR by number**
 ```
 User: "Help review PR 456"
-→ Fetch PR 456, analyze changes, generate hierarchical summary in dependency order
+→ Fetch PR 456, analyze changes, output Phase 1 overview, wait for "next"
+→ User: "next" → show first code element
+→ User: "What does this function do?" → answer question about current element
+→ User: "next" → show next code element
+→ ... continue until "Review complete."
 ```
 
 **Example 2: Review PR with alternative base**
 ```
 User: "Review PR 789 against develop instead of main"
-→ Fetch PR 789, diff against develop, generate summary
+→ Fetch PR 789, diff against develop, output Phase 1 overview, wait
 ```
 
 **Example 3: Review branch comparison**
 ```
 User: "Review changes from main to feature-auth"
-→ Diff main...feature-auth, generate summary
+→ Diff main...feature-auth, output Phase 1 overview, wait
 ```
 
 ## Implementation Notes
@@ -317,10 +381,10 @@ Keep each summary at 1-2 sentences by:
 2. **Fetch changes** → Use `gh pr diff` or `git diff`
 3. **Ensure branch** → Verify head branch checked out if needed
 4. **Read files** → Load changed files for full context
-5. **Analyze dependencies** → Build dependency graph
-6. **Order output** → Sort by dependencies (or PR body order)
-7. **Identify focus areas** → Suspicious items and priority areas
-8. **Generate hierarchy** → Overall → Focus Areas → Files → Modules → Functions
-9. **Format output** → Markdown with clear visual hierarchy
+5. **Analyze dependencies** → Determine file order; identify code elements top-to-bottom within each file
+6. **Identify suspicious items** → Find the few most concerning items across the entire review
+7. **Output Phase 1** → Overall summary + file list with per-file summaries → **stop and wait**
+8. **Interactive Phase 2** → On each "next": show one code element (with diff if ≤15 lines, description, and inline suspicious flag if applicable) → **stop and wait**
+9. **Complete** → After last element, print "Review complete."
 
-Focus on creating actionable, easy-to-navigate summaries that help reviewers understand complex changes efficiently.
+The review is interactive: always stop after Phase 1 and after each code element to let the reviewer ask questions or move on.
