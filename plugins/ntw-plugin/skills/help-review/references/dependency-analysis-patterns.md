@@ -25,15 +25,6 @@ The `.fsproj` file lists all `.fs` files in dependency order. You can simply use
 
 **Result:** Present files in the exact order they appear in the `.fsproj` file.
 
-### Within a File: All Contents Are Already in Dependency Order
-
-F# enforces that all definitions must appear before their usage within a file. This means:
-- Functions are already ordered with callees before callers
-- Types are already defined before functions that use them
-- No need to analyze call graphs or imports within a single file
-
-**Result:** Present changed functions/types in the order they appear in the file.
-
 ### Between Projects: Check .fsproj References
 
 Project dependencies are declared explicitly in `.fsproj` files:
@@ -64,19 +55,23 @@ For F# codebases, instead of complex dependency analysis:
 
 Examine import statements to build a dependency graph:
 
-**F# Example:**
-```fsharp
-// File A: DataStructures.fs
-type User = { Id: int; Name: string }
+**PureScript Example:**
+```purescript
+-- File A: DataStructures.purs
+type User = { id :: Int, name :: String }
 
-// File B: Validation.fs
-open DataStructures  // Depends on A
-let validateUser (user: User) = ...
+-- File B: Validation.purs
+import GasDay.DataStructures (User)  -- Depends on A
 
-// File C: UserService.fs
-open DataStructures  // Depends on A
-open Validation      // Depends on B
-let createUser name = ...
+validateUser :: User -> ...
+validateUser user = ...
+
+-- File C: UserService.purs
+import GasDay.DataStructures (User)      -- Depends on A
+import GasDay.Validation (validateUser)  -- Depends on B
+
+createUser String -> ...
+createUser name = ...
 ```
 
 **Dependency order:** A → B → C
@@ -85,21 +80,23 @@ let createUser name = ...
 
 Functions that define types come before functions that use those types:
 
-**F# Example:**
-```fsharp
-// Comes first: Type definition
-type ValidationError =
-  | InvalidInput of string
+**PureScript Example:**
+```purescript
+-- Comes first: Type definition
+data ValidationError 
+  = InvalidInput String
   | MissingData
 
-// Comes second: Function using the type
-let validateInput (x: string): Result<string, ValidationError> = ...
+-- Comes second: Function using the type
+validateInput :: String -> Either ValidationError String
+validateInput x = ...
 
-// Comes third: Function using Result type
-let processInput x =
-  match validateInput x with
-  | Ok value -> doSomething value
-  | Error err -> handleError err
+-- Comes third: Function using Result type
+processInput :: String -> Effect Unit
+processInput x =
+  case validateInput x of
+    Right value -> doSomething value
+    Left err -> handleError err
 ```
 
 ### Strategy 3: Call Graph Analysis
@@ -107,18 +104,23 @@ let processInput x =
 Build a call graph by identifying function calls:
 
 **Example:**
-```fsharp
-// Level 1: Leaf functions (call nothing)
-let formatDate (d: LocalDate) = d.ToString("yyyy-MM-dd")
-let formatName (s: string) = s.Trim().ToUpper()
+```purescript
+-- Level 1: Leaf functions (call nothing)
+formatDate :: Date -> String
+formatDate = format [Year, Placeholder "-", MonthTwoDigit, Placeholder "-", DayTwoDigit]
 
-// Level 2: Functions calling level 1
-let formatUser (user: User) =
-  $"%s{formatName user.Name} (%s{formatDate user.CreatedDate})"
+formatName String -> String
+formatName = String.trim >>> String.upper
 
-// Level 3: Functions calling level 2
-let generateReport users =
-  users |> List.map formatUser |> String.concat "\n"
+-- Level 2: Functions calling level 1
+formatUser User -> String
+formatUser user =
+  formatName user.name <> " " <> formatDate user.createdDate
+
+-- Level 3: Functions calling level 2
+generateReport :: ∀ f. Foldable f => f User -> String
+generateReport users =
+  users <#> formatUser # String.joinWith "\n"
 ```
 
 **Dependency order:** formatDate, formatName → formatUser → generateReport
@@ -136,13 +138,13 @@ Organize by architectural layers:
 
 **Example file order:**
 ```
-DataStructures.fs     (Layer 1)
-Utils.fs             (Layer 2)
-DataAssembly.fs      (Layer 3)
-Validation.fs        (Layer 4)
-BusinessLogic.fs     (Layer 4)
-Workflows.fs         (Layer 5)
-Program.fs           (Layer 6)
+DataStructures.purs    (Layer 1)
+Utils.purs             (Layer 2)
+DataAssembly.purs      (Layer 3)
+Validation.purs        (Layer 4)
+BusinessLogic.purs     (Layer 4)
+Workflows.purs         (Layer 5)
+Program.purs           (Layer 6)
 ```
 
 ## Handling Circular Dependencies
@@ -164,54 +166,6 @@ Validates configuration structure, calling parseConfig for nested configs.
 
 #### Function: `parseConfig: string -> Result<Config, Error>`
 Parses configuration string, calling validateConfig to ensure validity.
-```
-
-## F#-Specific Patterns
-
-### Computation Expressions
-
-Functions defining computation expressions come before code using them:
-
-```fsharp
-// First: Define computation expression
-type ResultBuilder() =
-  member _.Bind(x, f) = Result.bind f x
-  member _.Return(x) = Ok x
-let result = ResultBuilder()
-
-// Second: Use computation expression
-let workflow () = result {
-  let! x = getValue()
-  let! y = process x
-  return y
-}
-```
-
-### Type Extensions
-
-Type definitions before their extensions:
-
-```fsharp
-// First: Original type
-type User = { Name: string }
-
-// Second: Extension
-type User with
-  member this.DisplayName = this.Name.ToUpper()
-```
-
-### Module Dependencies
-
-Nested modules depend on parent modules:
-
-```fsharp
-// First: Parent module
-module Data =
-  type Record = { Id: int }
-
-// Second: Nested module using parent
-module Data.Validation =
-  let validate (r: Record) = r.Id > 0
 ```
 
 ## Python-Specific Patterns
@@ -274,73 +228,44 @@ export const createUser = (name: string) => ...
 ### Example 1: Refactoring PR
 
 **Files changed:**
-- `DataStructures.fs` - Added new type `CacheKey`
-- `CacheManager.fs` - New file using `CacheKey`
-- `DataAssembly.fs` - Modified to use `CacheManager`
-- `Program.fs` - Initializes cache from `CacheManager`
+- `DataStructures.purs` - Added new type `CacheKey`
+- `CacheManager.purs` - New file using `CacheKey`
+- `DataAssembly.purs` - Modified to use `CacheManager`
+- `Program.purs` - Initializes cache from `CacheManager`
 
 **Dependency order:**
-1. DataStructures.fs (defines CacheKey)
-2. CacheManager.fs (uses CacheKey)
-3. DataAssembly.fs (uses CacheManager)
-4. Program.fs (orchestrates everything)
+1. DataStructures.purs (defines CacheKey)
+2. CacheManager.purs (uses CacheKey)
+3. DataAssembly.purs (uses CacheManager)
+4. Program.purs (orchestrates everything)
 
 ### Example 2: Bug Fix PR
 
 **Files changed:**
-- `Validation.fs` - Fixed validation logic
-- `UserService.fs` - Updated to handle new validation behavior
-- `UserServiceSpec.fs` - Added test coverage
+- `Validation.purs` - Fixed validation logic
+- `UserService.purs` - Updated to handle new validation behavior
+- `UserServiceSpec.purs` - Added test coverage
 
 **Dependency order:**
-1. Validation.fs (core fix)
-2. UserService.fs (adapts to fix)
-3. UserServiceSpec.fs (tests the adapted behavior)
+1. Validation.purs (core fix)
+2. UserService.purs (adapts to fix)
+3. UserServiceSpec.purs (tests the adapted behavior)
 
 ### Example 3: Feature Addition
 
 **Files changed:**
-- `DataStructures.fs` - New types for feature
-- `Utils.fs` - Helper functions for feature
-- `ApiClient.fs` - API integration
-- `BusinessLogic.fs` - Feature implementation
-- `Program.fs` - CLI command for feature
+- `DataStructures.purs` - New types for feature
+- `Utils.purs` - Helper functions for feature
+- `ApiClient.purs` - API integration
+- `BusinessLogic.purs` - Feature implementation
+- `Program.purs` - CLI command for feature
 
 **Dependency order:**
-1. DataStructures.fs
-2. Utils.fs
-3. ApiClient.fs
-4. BusinessLogic.fs
-5. Program.fs
-
-## Topological Sort Algorithm
-
-For complex dependency graphs, use topological sort:
-
-1. **Build adjacency list**: Map each file/function to its dependencies
-2. **Calculate in-degrees**: Count incoming edges for each node
-3. **Start with zero in-degree**: These have no dependencies
-4. **Remove nodes iteratively**: As each is processed, decrement dependent in-degrees
-5. **Continue until complete**: Result is valid topological order
-
-**Pseudocode:**
-```
-function topologicalSort(nodes, dependencies):
-  inDegree = calculateInDegrees(nodes, dependencies)
-  queue = nodes.filter(n => inDegree[n] == 0)
-  result = []
-
-  while queue is not empty:
-    node = queue.dequeue()
-    result.append(node)
-
-    for dependent in dependencies[node]:
-      inDegree[dependent]--
-      if inDegree[dependent] == 0:
-        queue.enqueue(dependent)
-
-  return result
-```
+1. DataStructures.purs
+2. Utils.purs
+3. ApiClient.purs
+4. BusinessLogic.purs
+5. Program.purs
 
 ## Edge Cases
 
@@ -355,16 +280,16 @@ Files with no external dependencies can appear in any order, but typically:
 
 Test files typically come after the code they test:
 ```
-BusinessLogic.fs
-BusinessLogicSpec.fs  (tests BusinessLogic.fs)
+BusinessLogic.purs
+BusinessLogicSpec.purs  (tests BusinessLogic.purs)
 ```
 
 ### Configuration Files
 
 Configuration typically comes early (defines constants/settings used elsewhere):
 ```
-Config.fs       (first - defines settings)
-DataAccess.fs   (uses Config)
+Config.purs       (first - defines settings)
+DataAccess.purs   (uses Config)
 ```
 
 ## PR Body Review Order Override

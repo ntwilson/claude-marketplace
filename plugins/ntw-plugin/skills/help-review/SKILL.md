@@ -13,7 +13,7 @@ Generate interactive code review walkthroughs that:
 - Start with a concise overview, then drill into details on demand
 - Present changes in dependency order (callees before callers)
 - Show diffs inline for small changes (≤15 lines)
-- Surface suspicious items inline at the relevant code element, not as a separate section
+- Surface suspicious items inline at the relevant code element
 - Support multiple input formats (PR number, branches, or PR with custom base)
 
 ## When to Use
@@ -55,7 +55,7 @@ Check if head branch is checked out:
 git branch --show-current
 ```
 
-If not on head branch and files need to be read for context, ask user to check out the branch or proceed with available information.
+If not on head branch and files need to be read for context, use git to check out the branch or proceed with available information.
 
 ### Step 3: Analyze Changed Files
 
@@ -70,7 +70,7 @@ For each changed file:
 
 ### Step 4: Determine Dependency Order
 
-Order files and functions so that:
+Order files so that:
 - Dependencies appear before dependents (callees before callers)
 - Lower-level utilities come before higher-level orchestration
 - Shared/common code comes before specific implementations
@@ -91,7 +91,7 @@ And language-specific items that should **always** be flagged (see "Language-Spe
 - In F# files: `mutable` declarations, mutable collection operations, functions that may throw, non-deterministic or side-effectful operations outside `io { ... }`
 - In PureScript files: any use of `unsafe` functions
 
-For the general concerns, keep the list short (typically 2-5 items for a whole PR). The language-specific items should **always** be flagged whenever they appear in changed code, regardless of count. All items are surfaced inline during the walkthrough at the specific code element they relate to — not as a separate up-front section.
+All items are surfaced inline during the walkthrough at the specific code element they relate to — not as a separate up-front section.
 
 ### Step 6: Present Initial Overview (Phase 1 output)
 
@@ -108,9 +108,9 @@ When the user says "next", "proceed", "move on", "continue", or similar:
 1. **If entering a new file** (first element in that file): print a 1-5 sentence summary of the changes in this file
 2. **Current code element** (function, type definition, method, etc.):
    - Print the element's name and signature
-   - If the diff for this element is **≤15 lines**, print the diff in a fenced code block
+   - If the diff for this element is **≤10 lines**, print the diff in a fenced code block
    - Print 1-5 sentences describing the change
-   - **Only if** this element is one of the few most suspicious items identified in Step 5: print the concern with a ⚠️ prefix
+   - If this element is one of the suspicious items identified in Step 5: print the concern with a ⚠️ prefix
 3. **Stop and wait** — the user may ask questions about this element, or say "next" to continue
 
 Repeat until all code elements across all files are exhausted, then print: "Review complete."
@@ -153,7 +153,7 @@ Each time the user says "next", output one code element:
 ### `functionName: paramType -> returnType`
 
 \`\`\`diff
-[diff if ≤15 lines]
+[diff if ≤10 lines]
 \`\`\`
 
 [1-5 sentence description of the change]
@@ -172,7 +172,7 @@ Review complete.
 **File paths:** Use backticks and full relative paths from repo root
 
 **Function signatures:** Include parameter types and return types when available:
-- F#: `functionName: param1Type -> param2Type -> returnType`
+- F#/PureScript: `functionName: param1Type -> param2Type -> returnType`
 - Python: `def functionName(param1: Type1, param2: Type2) -> ReturnType`
 - TypeScript: `functionName(param1: Type1, param2: Type2): ReturnType`
 
@@ -200,7 +200,6 @@ Review complete.
 - Recognize module structure and nested modules
 - Identify computation expressions (`io { }`, `async { }`)
 - Note type inference impacts (when signatures change)
-- Highlight pipeline changes (`|>`, `>>`)
 
 ### PureScript Codebases
 
@@ -222,7 +221,7 @@ Review complete.
 
 ## Language-Specific Suspicious Items
 
-These items should **always** be flagged with ⚠️ when they appear in changed code. Unlike general suspicious items (which are limited to 2-5 per PR), these are flagged every time they occur.
+These items should **always** be flagged with ⚠️ when they appear in changed code.
 
 ### F# Files (`.fs`)
 
@@ -234,6 +233,7 @@ These items should **always** be flagged with ⚠️ when they appear in changed
 - `Option.get`
 - `Result.get` (if present)
 - `dict.[key]` (indexer access on dictionaries)
+- `int`, `float` conversions that throw on failure
 - Any similar function that throws rather than returning Option/Result
 
 **Mutable variable declarations** — flag any use of `let mutable`:
@@ -343,13 +343,6 @@ Check PR body for review order directives:
 ```
 
 If found, use this order instead of dependency order.
-
-### Handling Large PRs
-
-For PRs with >20 files changed:
-- Ask user if they want full summary or focused summary
-- Offer to summarize only specific files or modules
-- Prioritize core business logic over test/config changes
 
 ### Balancing Detail and Brevity
 

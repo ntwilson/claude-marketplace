@@ -1,6 +1,6 @@
 # Review Focus Patterns
 
-This reference provides detailed patterns for identifying suspicious code and areas requiring closer attention during code reviews.
+This reference provides detailed patterns for identifying suspicious code and areas requiring closer attention during code reviews. If you have access to the fsharp-conventions skill, also flag any violations of the conventions.
 
 ## Categories of Focus Areas
 
@@ -175,6 +175,9 @@ if hasPermission && isEnabled then ...
 - Mixing local and UTC times
 - Incorrect timezone conversions
 - Not accounting for DST changes
+
+**Getting the "days" component of a normalized duration instead of the total number of days:**
+- Using NodaTime `(dateA - dateB).Days` instead of `Period.Between(dateB, dateA, PeriodUnits.Days).Days`
 
 ### 6. Breaking Changes
 
