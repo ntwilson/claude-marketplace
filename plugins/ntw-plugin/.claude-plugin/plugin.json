@@ -1,9 +1,9 @@
 {
-  "name": "claude-plugin",
+  "name": "ntw-plugin",
   "version": "0.2.0",
   "description": "AI-powered development skills including hierarchical code review summaries",
   "author": {
-    "name": "Your Name"
+    "name": "Nathan Wilson"
   },
   "repository": "https://github.com/ntwilson/claude-plugin",
   "license": "CC0",
