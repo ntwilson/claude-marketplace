@@ -12,7 +12,7 @@ This skill provides interactive, incremental code review walkthroughs organized 
 Generate interactive code review walkthroughs that:
 - Start with a concise overview, then drill into details on demand
 - Present changes in dependency order (callees before callers)
-- Show diffs inline for small changes (≤15 lines)
+- Show diffs inline for all changes
 - Surface suspicious items inline at the relevant code element
 - Support multiple input formats (PR number, branches, or PR with custom base)
 
@@ -108,14 +108,12 @@ When the user says "next", "proceed", "move on", "continue", or similar:
 1. **If entering a new file** (first element in that file): print a 1-5 sentence summary of the changes in this file
 2. **Current code element** (function, type definition, method, etc.):
    - Print the element's name and signature
-   - If the diff for this element is **≤10 lines**, print the diff in a fenced code block
+   - Print the diff in a fenced code block
    - Print 1-5 sentences describing the change
    - If this element is one of the suspicious items identified in Step 5: print the concern with a ⚠️ prefix
 3. **Stop and wait** — the user may ask questions about this element, or say "next" to continue
 
 Repeat until all code elements across all files are exhausted, then print: "Review complete."
-
-**Batching small changes:** When several consecutive code elements are small (e.g., one-liners or trivial changes), combine them into a single response rather than making the user say "next" for each one. Use your judgement — if there are 3 one-line type alias changes in a row, present them together. They can even span different code elements. The goal is to avoid tedious one-at-a-time pacing for trivial changes.
 
 **Skipping files:** If the user says "next file" or "skip file", skip all remaining elements in the current file and move to the first element of the next file.
 
@@ -153,7 +151,7 @@ Each time the user says "next", output one code element:
 ### `functionName: paramType -> returnType`
 
 \`\`\`diff
-[diff if ≤10 lines]
+[diff]
 \`\`\`
 
 [1-5 sentence description of the change]
@@ -377,7 +375,7 @@ Keep each summary at 1-2 sentences by:
 5. **Analyze dependencies** → Determine file order; identify code elements top-to-bottom within each file
 6. **Identify suspicious items** → Find the few most concerning items across the entire review
 7. **Output Phase 1** → Overall summary + file list with per-file summaries → **stop and wait**
-8. **Interactive Phase 2** → On each "next": show one code element (with diff if ≤15 lines, description, and inline suspicious flag if applicable) → **stop and wait**
+8. **Interactive Phase 2** → On each "next": show one code element (with diff, description, and inline suspicious flag if applicable) → **stop and wait**
 9. **Complete** → After last element, print "Review complete."
 
 The review is interactive: always stop after Phase 1 and after each code element to let the reviewer ask questions or move on.
