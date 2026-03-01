@@ -1,6 +1,6 @@
 ---
 name: summarize-review
-description: Use this skill when the user asks to "summarize a PR", "summarize review", "give me a layered summary", "drill-down review", or wants a high-level overview of code changes that progressively adds more detail on demand. Provides a multi-section, interactive review that covers summary, architecture, data flow, error analysis, and code smells.
+description: Use this skill when the user asks to "summarize a PR", "summarize review", "give me a layered summary", "drill-down review", or wants a high-level overview of code changes that progressively adds more detail on demand. Provides a multi-section, interactive review that covers summary, architecture, file-by-file breakdown, data flow, error analysis, and code smells.
 ---
 
 # Summarize Review Assistant
@@ -9,13 +9,14 @@ This skill provides a multi-section, layered code review that starts with high-l
 
 ## Purpose
 
-Walk through a review in five focused sections — each interactive and expandable — rather than element by element:
+Walk through a review in six focused sections — each interactive and expandable — rather than element by element:
 
 1. **Overall summary** — what and why
 2. **Architecture** — structure of new/changed code
-3. **Data flow** — how data moves through the changes
-4. **Error analysis** — where errors originate and how they propagate
-5. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
+3. **File-by-file breakdown** — per-file summaries, with optional per-function detail
+4. **Data flow** — how data moves through the changes
+5. **Error analysis** — where errors originate and how they propagate
+6. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
 
 ## Input Formats
 
@@ -64,10 +65,11 @@ Use dependency order throughout:
 
 ### Step 5: Pre-analyze Everything
 
-Before producing any output, fully analyze the changes across all files to prepare all five sections. Specifically:
+Before producing any output, fully analyze the changes across all files to prepare all six sections. Specifically:
 
 - Understand the overall purpose and scope
 - Identify architectural patterns in new/changed code
+- Summarize each changed file and its key functions
 - Trace data flow through the changes
 - Identify all error origins and propagation paths
 - Collect all language-specific suspicious items and any other noteworthy concerns
@@ -112,14 +114,52 @@ Skip this section (and say so) if the changes are purely behavioral with no stru
 Start with a concise version (2–5 sentences or a short bulleted list). Then stop and prompt:
 
 ```
-Say **more** for a more detailed architecture breakdown, or **next** to move on to data flow.
+Say **more** for a more detailed architecture breakdown, or **next** to move on to the file-by-file breakdown.
 ```
 
 Apply the same "more doubles content" pattern as Section 1 (including the ceiling rule) until the user says "next".
 
 ---
 
-## Section 3: Data Flow
+## Section 3: File-by-File Breakdown
+
+Walk through each changed file **one at a time** in dependency order. For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
+
+### File summary format:
+
+```markdown
+### `path/to/file.ext`
+
+[2–4 sentences: what changed in this file, what role it plays, and any notable details]
+```
+
+After each file summary, prompt:
+
+```
+Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
+```
+
+**If the user says "more":** Break the file down function by function (or logical block by block for non-function-oriented files). For each function or block that changed, show:
+- The function/block name
+- A 1–3 sentence description of what it does and what changed
+
+Present all functions for that file together (not one at a time), then prompt:
+
+```
+Say **next** to move on to the next file.
+```
+
+**If the user asks questions:** Answer them, then re-show the current prompt.
+
+After the last file, prompt:
+
+```
+Say **next** to move on to data flow.
+```
+
+---
+
+## Section 4: Data Flow
 
 Summarize how data moves through the changed code. Focus on:
 
@@ -139,11 +179,11 @@ Apply the same "more doubles content" pattern (including the ceiling rule) until
 
 ---
 
-## Section 4: Error Analysis
+## Section 5: Error Analysis
 
 Identify and explain errors and failure conditions in the changed code. Present error origins **one at a time**, waiting for the user between each. After all origins, present the propagation summary.
 
-### 4a: Error Origins
+### 5a: Error Origins
 
 For each place in the changed code where an error or failure condition can arise, show:
 - The code location (file and function/line)
@@ -157,7 +197,7 @@ Focus on typed errors and explicit failure cases, such as:
 - Functions that can return `None`/`null`/`Nothing` in failure cases
 - Functions known to throw on invalid input (see language-specific lists below)
 
-### 4b: Error Propagation
+### 5b: Error Propagation
 
 After all error origins have been presented, explain:
 - How errors flow upward through the call chain
@@ -199,7 +239,7 @@ Say **next** to move on to code smells.
 
 ---
 
-## Section 5: Code Smells and Suspicious Items
+## Section 6: Code Smells and Suspicious Items
 
 Present language-specific code smells and any other suspicious or problematic code found in the changed code. Present items **one at a time**, waiting for the user between each.
 
@@ -291,10 +331,34 @@ Say **more** for a more detailed summary, or **next** to move on to architecture
 
 [Concise architectural summary]
 
-Say **more** for a more detailed architecture breakdown, or **next** to move on to data flow.
+Say **more** for a more detailed architecture breakdown, or **next** to move on to the file-by-file breakdown.
 ```
 
-### Section 3: Data Flow
+### Section 3: File-by-File Breakdown (one file at a time)
+
+```markdown
+## File-by-File Breakdown
+
+### `path/to/file.ext`
+
+[2–4 sentence file summary]
+
+Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
+```
+
+On "more":
+
+```markdown
+### `path/to/file.ext` — Functions
+
+- **`functionName`** — [1–3 sentence description]
+- **`anotherFunction`** — [1–3 sentence description]
+...
+
+Say **next** to move on to the next file.
+```
+
+### Section 4: Data Flow
 
 ```markdown
 ## Data Flow
@@ -304,7 +368,7 @@ Say **more** for a more detailed architecture breakdown, or **next** to move on 
 Say **more** for a more detailed data flow breakdown, or **next** to move on to error analysis.
 ```
 
-### Section 4: Error Analysis (one at a time)
+### Section 5: Error Analysis (one at a time)
 
 ```markdown
 ## Error Analysis
@@ -328,7 +392,7 @@ After all origins, present propagation summary then prompt:
 Feel free to ask questions about any of these errors, or say **next** to move on to code smells.
 ```
 
-### Section 5: Code Smells (one at a time)
+### Section 6: Code Smells (one at a time)
 
 ```markdown
 ## Code Smells and Suspicious Items
@@ -370,10 +434,11 @@ Review complete.
 1. **Parse input** → Determine if PR number, PR + base, or branches
 2. **Fetch changes** → Use `gh pr diff` or `git diff`
 3. **Read files** → Load changed files for full context
-4. **Pre-analyze** → Prepare all five sections before producing output
+4. **Pre-analyze** → Prepare all six sections before producing output
 5. **Section 1** → Overall summary → wait; expand on "more", advance on "next"
 6. **Section 2** → Architecture → wait; expand on "more", advance on "next"
-7. **Section 3** → Data flow → wait; expand on "more", advance on "next"
-8. **Section 4** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
-9. **Section 5** → Code smells one-at-a-time → wait after each; advance on "next"
-10. **Complete** → Print "Review complete."
+7. **Section 3** → File-by-file, one file at a time → wait after each; expand to functions on "more", advance on "next"
+8. **Section 4** → Data flow → wait; expand on "more", advance on "next"
+9. **Section 5** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
+10. **Section 6** → Code smells one-at-a-time → wait after each; advance on "next"
+11. **Complete** → Print "Review complete."
