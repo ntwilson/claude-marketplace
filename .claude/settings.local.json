@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git mv plugins/ntw-plugin/skills/help-review plugins/ntw-plugin/skills/review-by-element)"
-    ]
-  }
-}

@@ -3,6 +3,9 @@
 .vscode/
 .idea/
 
+# Personal files
+.claude/
+
 # OS files
 .DS_Store
 Thumbs.db
