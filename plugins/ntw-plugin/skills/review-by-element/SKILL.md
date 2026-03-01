@@ -1,5 +1,5 @@
 ---
-name: help-review
+name: review-by-element
 description: This skill should be used when the user asks to "review a PR", "review pull request", "review changes", "summarize a PR", "analyze code changes", "help review", or provides a GitHub PR number for review. Provides interactive, dependency-ordered code review walkthroughs with actionable insights.
 ---
 
