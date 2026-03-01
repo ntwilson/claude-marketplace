@@ -32,7 +32,13 @@ Walk through a review in six focused sections — each interactive and expandabl
 ```bash
 gh pr view <PR_NUMBER> --json number,title,body,baseRefName,headRefName,files
 gh pr diff <PR_NUMBER>
+gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments --paginate
+gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews --paginate
 ```
+
+The first `api` call returns inline diff comments (each has `path`, `line`, `original_line`, `body`, `user.login`, `created_at`, `html_url`). The second returns top-level review submissions (each has `body`, `user.login`, `state`, `submitted_at`). Fetch both and retain them for use in Section 3.
+
+Resolve `{owner}` and `{repo}` from `gh repo view --json owner,name` or from the PR URL.
 
 **For branches:**
 ```bash
@@ -70,6 +76,7 @@ Before producing any output, fully analyze the changes across all files to prepa
 - Understand the overall purpose and scope
 - Identify architectural patterns in new/changed code
 - Summarize each changed file and its key functions
+- **For PR reviews:** Group inline review comments by file and by function/line range, so each file and function knows how many comments it has and what they say
 - Trace data flow through the changes
 - Identify all error origins and propagation paths
 - Collect all language-specific suspicious items and any other noteworthy concerns
@@ -128,12 +135,33 @@ Walk through each changed file **one at a time** in dependency order. For each f
 ### File summary format:
 
 ```markdown
-### `path/to/file.ext`
+### `path/to/file.ext` _(N review comments)_
 
 [2–4 sentences: what changed in this file, what role it plays, and any notable details]
 ```
 
-After each file summary, prompt:
+Omit the comment count if there are no review comments on the file, or if the review was not for a PR.
+
+After each file summary, the prompt depends on whether there are review comments on the file:
+
+**With review comments:**
+```
+Say **comments** to see the review comments on this file, **more** for a function-by-function breakdown, or **next** to move on to the next file.
+```
+
+**Without review comments:**
+```
+Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
+```
+
+**If the user says "comments":** Display all inline review comments for the file, grouped by reviewer. Format each comment as:
+
+```markdown
+**@username** on line N:
+> [comment body]
+```
+
+After showing comments, re-show the current prompt (replacing "comments" with "more" if comments have already been shown):
 
 ```
 Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
@@ -142,6 +170,7 @@ Say **more** for a function-by-function breakdown of this file, or **next** to m
 **If the user says "more":** Break the file down function by function (or logical block by block for non-function-oriented files). For each function or block that changed, show:
 - The function/block name
 - A 1–3 sentence description of what it does and what changed
+- **For PR reviews:** Any inline review comments whose line falls within the function, formatted the same as above, immediately after the function description
 
 Present all functions for that file together (not one at a time), then prompt:
 
@@ -339,9 +368,21 @@ Say **more** for a more detailed architecture breakdown, or **next** to move on 
 ```markdown
 ## File-by-File Breakdown
 
-### `path/to/file.ext`
+### `path/to/file.ext` _(3 review comments)_
 
 [2–4 sentence file summary]
+
+Say **comments** to see the review comments on this file, **more** for a function-by-function breakdown, or **next** to move on to the next file.
+```
+
+On "comments":
+
+```markdown
+**@alice** on line 42:
+> [comment body]
+
+**@bob** on line 57:
+> [comment body]
 
 Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
 ```
@@ -352,7 +393,12 @@ On "more":
 ### `path/to/file.ext` — Functions
 
 - **`functionName`** — [1–3 sentence description]
+
+  **@alice** on line 42:
+  > [comment body]
+
 - **`anotherFunction`** — [1–3 sentence description]
+
 ...
 
 Say **next** to move on to the next file.
