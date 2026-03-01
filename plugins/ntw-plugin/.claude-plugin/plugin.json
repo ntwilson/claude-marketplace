@@ -1,6 +1,6 @@
 {
   "name": "ntw-plugin",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "AI-powered development skills including hierarchical code review summaries",
   "author": {
     "name": "Nathan Wilson"

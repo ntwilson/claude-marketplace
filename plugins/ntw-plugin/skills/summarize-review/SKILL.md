@@ -92,6 +92,8 @@ Say **more** for even more detail, or **next** to move on to architecture.
 
 Repeat this pattern — each "more" approximately doubles the content — until the user says "next".
 
+**Ceiling rule:** If the next doubling would produce output comparable in length to the actual diff or changed code itself, just print the relevant code/diff directly instead of producing a prose summary of similar size. A summary longer than what it summarizes is not a summary.
+
 **If the user asks questions:** Answer them, then re-show the prompt.
 
 ---
@@ -113,7 +115,7 @@ Start with a concise version (2–5 sentences or a short bulleted list). Then st
 Say **more** for a more detailed architecture breakdown, or **next** to move on to data flow.
 ```
 
-Apply the same "more doubles content" pattern as Section 1 until the user says "next".
+Apply the same "more doubles content" pattern as Section 1 (including the ceiling rule) until the user says "next".
 
 ---
 
@@ -133,7 +135,7 @@ Start concisely (2–5 sentences or a short bulleted trace). Then stop and promp
 Say **more** for a more detailed data flow breakdown, or **next** to move on to error analysis.
 ```
 
-Apply the same "more doubles content" pattern until the user says "next".
+Apply the same "more doubles content" pattern (including the ceiling rule) until the user says "next".
 
 ---
 
