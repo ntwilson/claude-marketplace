@@ -139,7 +139,7 @@ Apply the same "more doubles content" pattern until the user says "next".
 
 ## Section 4: Error Analysis
 
-Identify and explain errors and failure conditions in the changed code. Cover:
+Identify and explain errors and failure conditions in the changed code. Present error origins **one at a time**, waiting for the user between each. After all origins, present the propagation summary.
 
 ### 4a: Error Origins
 
@@ -157,7 +157,7 @@ Focus on typed errors and explicit failure cases, such as:
 
 ### 4b: Error Propagation
 
-After listing error origins, explain:
+After all error origins have been presented, explain:
 - How errors flow upward through the call chain
 - Whether errors are caught, handled, or re-raised at any point
 - Whether errors are aggregated (e.g., collecting multiple validation errors into a list)
@@ -175,13 +175,25 @@ After listing error origins, explain:
 [1-3 sentences: what can go wrong here and under what conditions]
 ```
 
-After presenting all error origins and the propagation summary, stop and prompt:
+After each error origin, prompt:
+
+```
+Say **next** to see the next error, or ask questions about this one.
+```
+
+After the last error origin, present the propagation summary, then stop and prompt:
 
 ```
 Feel free to ask questions about any of these errors, or say **next** to move on to code smells.
 ```
 
 Answer any questions the user asks, then re-show the prompt until the user says "next".
+
+If no error origins are found, say so, skip the propagation summary, and prompt:
+
+```
+Say **next** to move on to code smells.
+```
 
 ---
 
@@ -290,12 +302,10 @@ Say **more** for a more detailed architecture breakdown, or **next** to move on 
 Say **more** for a more detailed data flow breakdown, or **next** to move on to error analysis.
 ```
 
-### Section 4: Error Analysis
+### Section 4: Error Analysis (one at a time)
 
 ```markdown
 ## Error Analysis
-
-### Error Origins
 
 #### `functionName` — `path/to/file.ext`
 \`\`\`[language]
@@ -303,8 +313,12 @@ Say **more** for a more detailed data flow breakdown, or **next** to move on to 
 \`\`\`
 [explanation]
 
-...
+Say **next** to see the next error, or ask questions about this one.
+```
 
+After all origins, present propagation summary then prompt:
+
+```markdown
 ### Error Propagation
 
 [Explanation of how errors flow, are handled, or are swallowed]
@@ -358,6 +372,6 @@ Review complete.
 5. **Section 1** → Overall summary → wait; expand on "more", advance on "next"
 6. **Section 2** → Architecture → wait; expand on "more", advance on "next"
 7. **Section 3** → Data flow → wait; expand on "more", advance on "next"
-8. **Section 4** → Error analysis → wait; answer questions, advance on "next"
+8. **Section 4** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
 9. **Section 5** → Code smells one-at-a-time → wait after each; advance on "next"
 10. **Complete** → Print "Review complete."
