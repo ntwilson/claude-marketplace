@@ -1,6 +1,6 @@
 ---
 name: summarize-review
-description: Use this skill when the user asks to "summarize a PR", "summarize review", "give me a layered summary", "drill-down review", or wants a high-level overview of code changes that progressively adds more detail on demand. Provides a multi-section, interactive review that covers summary, architecture, file-by-file breakdown, data flow, error analysis, and code smells.
+description: Use this skill when the user asks to "summarize a PR", "summarize review", "give me a layered summary", "drill-down review", or wants a high-level overview of code changes that progressively adds more detail on demand. Provides a multi-section, interactive review that covers summary, architecture, data flow, file-by-file breakdown, error analysis, and code smells.
 ---
 
 # Summarize Review Assistant
@@ -9,14 +9,12 @@ This skill provides a multi-section, layered code review that starts with high-l
 
 ## Purpose
 
-Walk through a review in six focused sections — each interactive and expandable — rather than element by element:
+Walk through a review in four focused sections — each interactive and expandable — rather than element by element:
 
-1. **Overall summary** — what and why
-2. **Architecture** — structure of new/changed code
-3. **File-by-file breakdown** — per-file summaries, with optional per-function detail
-4. **Data flow** — how data moves through the changes
-5. **Error analysis** — where errors originate and how they propagate
-6. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
+1. **Overview** — summary, architecture, and data flow all in one place; drill into any of the three on demand
+2. **File-by-file breakdown** — per-file summaries, with optional per-function detail
+3. **Error analysis** — where errors originate and how they propagate
+4. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
 
 ## Input Formats
 
@@ -32,11 +30,11 @@ Walk through a review in six focused sections — each interactive and expandabl
 ```bash
 gh pr view <PR_NUMBER> --json number,title,body,baseRefName,headRefName,files
 gh pr diff <PR_NUMBER>
-gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments --paginate
+pwsh -File scripts/get-comments.ps1 -url "repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments"
 gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews --paginate
 ```
 
-The first `api` call returns inline diff comments (each has `path`, `line`, `original_line`, `body`, `user.login`, `created_at`, `html_url`). The second returns top-level review submissions (each has `body`, `user.login`, `state`, `submitted_at`). Fetch both and retain them for use in Section 3.
+The `get-comments.ps1` script fetches inline diff comments and outputs each as `FILE: <path> | LINE: <line> | USER: <username>` followed by `BODY: <text>`, one per block separated by `---`. The final `api` call returns top-level review submissions (each has `body`, `user.login`, `state`, `submitted_at`). Fetch both and retain them for use in Section 2.
 
 Resolve `{owner}` and `{repo}` from `gh repo view --json owner,name` or from the PR URL.
 
@@ -71,13 +69,13 @@ Use dependency order throughout:
 
 ### Step 5: Pre-analyze Everything
 
-Before producing any output, fully analyze the changes across all files to prepare all six sections. Specifically:
+Before producing any output, fully analyze the changes across all files to prepare all four sections. Specifically:
 
 - Understand the overall purpose and scope
 - Identify architectural patterns in new/changed code
+- Trace data flow through the changes
 - Summarize each changed file and its key functions
 - **For PR reviews:** Group inline review comments by file and by function/line range, so each file and function knows how many comments it has and what they say
-- Trace data flow through the changes
 - Identify all error origins and propagation paths
 - Collect all language-specific suspicious items and any other noteworthy concerns
 
@@ -85,52 +83,33 @@ This pre-analysis ensures each section is complete and coherent when presented.
 
 ---
 
-## Section 1: Overall Summary
+## Section 1: Overview
 
-Output a 1–5 sentence summary of the entire changeset — its purpose, scope, and key impact. Then stop and prompt:
+Present all three subsections concisely together:
+
+1. **Summary** — 1–5 sentences describing the entire changeset's purpose, scope, and key impact
+2. **Architecture** — 2–5 sentences or a short bulleted list describing new/changed structure; omit (and say so) if the changes are purely behavioral with no structural changes
+3. **Data flow** — 2–5 sentences or a short bulleted trace of where data enters, how it is transformed, and where it exits
+
+Then stop and prompt:
 
 ```
-Say **more** for a more detailed summary, or **next** to move on to architecture.
+Say **more summary**, **more architecture**, or **more data flow** for deeper detail on any of these, or **next** to move on to the file-by-file breakdown.
 ```
 
-**If the user says "more":** Provide a new summary with approximately twice the content of the previous one (e.g., if the last was 4 sentences, aim for ~8 sentences). Add specifics: which components changed, what behaviors differ, any notable tradeoffs. Then stop and prompt again:
+**If the user says "more [topic]":** Expand that subsection to approximately twice its previous length. Add specifics relevant to that topic. Re-show all three subsections (updated subsection in full, others unchanged) and re-show the prompt.
 
-```
-Say **more** for even more detail, or **next** to move on to architecture.
-```
+**If the user says "more" (no topic specified):** Expand all three subsections simultaneously, each to approximately twice their previous length.
 
-Repeat this pattern — each "more" approximately doubles the content — until the user says "next".
-
-**Ceiling rule:** If the next doubling would produce output comparable in length to the actual diff or changed code itself, just print the relevant code/diff directly instead of producing a prose summary of similar size. A summary longer than what it summarizes is not a summary.
+**Ceiling rule:** If the next doubling of a subsection would produce output comparable in length to the actual diff or changed code itself, print the relevant code/diff directly instead. A summary longer than what it summarizes is not a summary.
 
 **If the user asks questions:** Answer them, then re-show the prompt.
 
 ---
 
-## Section 2: Architecture
+## Section 2: File-by-File Breakdown
 
-Summarize the architecture of the new or changed code, if applicable. Focus on:
-
-- New types, modules, components, or abstractions introduced
-- How new code is structured (layers, separation of concerns, composition patterns)
-- How changed code fits into the existing architecture
-- Any architectural shifts (e.g., a computation moved from pure to effectful, a new abstraction layer added)
-
-Skip this section (and say so) if the changes are purely behavioral with no structural/architectural changes.
-
-Start with a concise version (2–5 sentences or a short bulleted list). Then stop and prompt:
-
-```
-Say **more** for a more detailed architecture breakdown, or **next** to move on to the file-by-file breakdown.
-```
-
-Apply the same "more doubles content" pattern as Section 1 (including the ceiling rule) until the user says "next".
-
----
-
-## Section 3: File-by-File Breakdown
-
-Walk through each changed file **one at a time** in dependency order. For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
+Walk through each changed file **one at a time** in dependency order (from Step 4). For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
 
 ### File summary format:
 
@@ -189,36 +168,16 @@ Say **next** to move on to the next file.
 After the last file, prompt:
 
 ```
-Say **next** to move on to data flow.
+Say **next** to move on to error analysis.
 ```
 
 ---
 
-## Section 4: Data Flow
-
-Summarize how data moves through the changed code. Focus on:
-
-- Where data enters (inputs, parameters, external sources)
-- How it is transformed as it flows through the changed code
-- Where it exits (outputs, side effects, storage)
-- Any notable branching paths or conditional transformations
-- How data flow in changed areas differs from before (if discernible)
-
-Start concisely (2–5 sentences or a short bulleted trace). Then stop and prompt:
-
-```
-Say **more** for a more detailed data flow breakdown, or **next** to move on to error analysis.
-```
-
-Apply the same "more doubles content" pattern (including the ceiling rule) until the user says "next".
-
----
-
-## Section 5: Error Analysis
+## Section 3: Error Analysis
 
 Identify and explain errors and failure conditions in the changed code. Present error origins **one at a time**, waiting for the user between each. After all origins, present the propagation summary.
 
-### 5a: Error Origins
+### 3a: Error Origins
 
 For each place in the changed code where an error or failure condition can arise, show:
 - The code location (file and function/line)
@@ -232,7 +191,7 @@ Focus on typed errors and explicit failure cases, such as:
 - Functions that can return `None`/`null`/`Nothing` in failure cases
 - Functions known to throw on invalid input (see language-specific lists below)
 
-### 5b: Error Propagation
+### 3b: Error Propagation
 
 After all error origins have been presented, explain:
 - How errors flow upward through the call chain
@@ -274,7 +233,7 @@ Say **next** to move on to code smells.
 
 ---
 
-## Section 6: Code Smells and Suspicious Items
+## Section 4: Code Smells and Suspicious Items
 
 Present language-specific code smells and any other suspicious or problematic code found in the changed code. Present items **one at a time**, waiting for the user between each.
 
@@ -341,7 +300,7 @@ If no suspicious items are found, say so and print "Review complete."
 
 The user moves forward by saying "next", "proceed", "continue", "move on", or similar.
 
-The user requests more detail within a section by saying "more", "expand", "more detail", "go deeper", or similar.
+The user requests more detail within a section by saying "more", "expand", "more detail", "go deeper", or similar. In Section 1, the user can target a specific subsection with "more summary", "more architecture", or "more data flow".
 
 The user can ask questions at any prompt — answer them and then re-show the current prompt.
 
@@ -349,27 +308,27 @@ The user can ask questions at any prompt — answer them and then re-show the cu
 
 ## Output Format Summary
 
-### Section 1: Overall Summary
+### Section 1: Overview
 
 ```markdown
 # Code Review Summary
 
+## Summary
+
 [1–5 sentence summary]
 
-Say **more** for a more detailed summary, or **next** to move on to architecture.
-```
-
-### Section 2: Architecture
-
-```markdown
 ## Architecture
 
-[Concise architectural summary]
+[2–5 sentence or bulleted architectural summary — or "No structural changes." if purely behavioral]
 
-Say **more** for a more detailed architecture breakdown, or **next** to move on to the file-by-file breakdown.
+## Data Flow
+
+[2–5 sentence or bulleted data flow trace]
+
+Say **more summary**, **more architecture**, or **more data flow** for deeper detail on any of these, or **next** to move on to the file-by-file breakdown.
 ```
 
-### Section 3: File-by-File Breakdown (one file at a time, in dependency order)
+### Section 2: File-by-File Breakdown (one file at a time, in dependency order)
 
 ```markdown
 ## File-by-File Breakdown
@@ -426,17 +385,7 @@ After the last function in the file:
 Say **next** to move on to the next file.
 ```
 
-### Section 4: Data Flow
-
-```markdown
-## Data Flow
-
-[Concise data flow summary]
-
-Say **more** for a more detailed data flow breakdown, or **next** to move on to error analysis.
-```
-
-### Section 5: Error Analysis (one at a time)
+### Section 3: Error Analysis (one at a time)
 
 ```markdown
 ## Error Analysis
@@ -460,7 +409,7 @@ After all origins, present propagation summary then prompt:
 Feel free to ask questions about any of these errors, or say **next** to move on to code smells.
 ```
 
-### Section 6: Code Smells (one at a time)
+### Section 4: Code Smells (one at a time)
 
 ```markdown
 ## Code Smells and Suspicious Items
@@ -494,6 +443,7 @@ Review complete.
 ### Helper Scripts
 
 - **`scripts/fetch-pr-info.ps1`** — PowerShell script to fetch PR information via `gh` CLI
+- **`scripts/get-comments.ps1`** — Fetches inline diff comments from the GitHub API and formats them as readable `FILE | LINE | USER` / `BODY` blocks. Always invoke with `pwsh -File "<absolute-path-to-script>"` (not just `pwsh "<path>"`) so that backslashes in the path are not interpreted as escape characters on Windows. Example: `pwsh -File "C:\path\to\get-comments.ps1" -url "repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments"`
 
 ---
 
@@ -502,11 +452,9 @@ Review complete.
 1. **Parse input** → Determine if PR number, PR + base, or branches
 2. **Fetch changes** → Use `gh pr diff` or `git diff`
 3. **Read files** → Load changed files for full context
-4. **Pre-analyze** → Prepare all six sections before producing output
-5. **Section 1** → Overall summary → wait; expand on "more", advance on "next"
-6. **Section 2** → Architecture → wait; expand on "more", advance on "next"
-7. **Section 3** → File-by-file **in dependency order** (from Step 4), one file at a time → wait after each; expand to functions on "more", advance on "next"
-8. **Section 4** → Data flow → wait; expand on "more", advance on "next"
-9. **Section 5** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
-10. **Section 6** → Code smells one-at-a-time → wait after each; advance on "next"
-11. **Complete** → Print "Review complete."
+4. **Pre-analyze** → Prepare all four sections before producing output
+5. **Section 1** → Overview (summary + architecture + data flow together) → wait; expand individual subsections on "more [topic]", advance on "next"
+6. **Section 2** → File-by-file **in dependency order** (from Step 4), one file at a time → wait after each; expand to functions on "more", advance on "next"
+7. **Section 3** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
+8. **Section 4** → Code smells one-at-a-time → wait after each; advance on "next"
+9. **Complete** → Print "Review complete."
