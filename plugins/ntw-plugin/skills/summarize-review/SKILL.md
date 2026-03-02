@@ -167,12 +167,18 @@ After showing comments, re-show the current prompt (replacing "comments" with "m
 Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
 ```
 
-**If the user says "more":** Break the file down function by function (or logical block by block for non-function-oriented files). For each function or block that changed, show:
+**If the user says "more":** Break the file down function by function (or logical block by block for non-function-oriented files). Present functions **one at a time**. For each function or block that changed, show:
 - The function/block name
 - A 1–3 sentence description of what it does and what changed
 - **For PR reviews:** Any inline review comments whose line falls within the function, formatted the same as above, immediately after the function description
 
-Present all functions for that file together (not one at a time), then prompt:
+After each function (except the last), prompt:
+
+```
+Say **next** to see the next function, or ask questions about this one.
+```
+
+After the last function in the file, prompt:
 
 ```
 Say **next** to move on to the next file.
@@ -363,7 +369,7 @@ Say **more** for a more detailed summary, or **next** to move on to architecture
 Say **more** for a more detailed architecture breakdown, or **next** to move on to the file-by-file breakdown.
 ```
 
-### Section 3: File-by-File Breakdown (one file at a time)
+### Section 3: File-by-File Breakdown (one file at a time, in dependency order)
 
 ```markdown
 ## File-by-File Breakdown
@@ -387,19 +393,35 @@ On "comments":
 Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
 ```
 
-On "more":
+On "more" (first function):
 
 ```markdown
-### `path/to/file.ext` — Functions
+#### `functionName`
 
-- **`functionName`** — [1–3 sentence description]
+[1–3 sentence description]
 
-  **@alice** on line 42:
-  > [comment body]
+**@alice** on line 42:
+> [comment body]
 
-- **`anotherFunction`** — [1–3 sentence description]
+Say **next** to see the next function, or ask questions about this one.
+```
 
-...
+On "next" (subsequent functions, same pattern until the last):
+
+```markdown
+#### `anotherFunction`
+
+[1–3 sentence description]
+
+Say **next** to see the next function, or ask questions about this one.
+```
+
+After the last function in the file:
+
+```markdown
+#### `lastFunction`
+
+[1–3 sentence description]
 
 Say **next** to move on to the next file.
 ```
@@ -483,7 +505,7 @@ Review complete.
 4. **Pre-analyze** → Prepare all six sections before producing output
 5. **Section 1** → Overall summary → wait; expand on "more", advance on "next"
 6. **Section 2** → Architecture → wait; expand on "more", advance on "next"
-7. **Section 3** → File-by-file, one file at a time → wait after each; expand to functions on "more", advance on "next"
+7. **Section 3** → File-by-file **in dependency order** (from Step 4), one file at a time → wait after each; expand to functions on "more", advance on "next"
 8. **Section 4** → Data flow → wait; expand on "more", advance on "next"
 9. **Section 5** → Error origins one-at-a-time → wait after each; propagation summary → wait; advance on "next"
 10. **Section 6** → Code smells one-at-a-time → wait after each; advance on "next"
