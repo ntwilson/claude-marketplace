@@ -1,6 +1,6 @@
 ---
 name: review-by-element
-description: Use this skill when the user asks to "summarize a PR", "summarize review", "give me a layered summary", "drill-down review", or wants a high-level overview of code changes that progressively adds more detail on demand. Provides a multi-section, interactive review that covers summary, architecture, data flow, file-by-file breakdown, error analysis, and code smells.
+This skill should be used when the user asks to "review a PR by element", "review pull request by element", or provides a GitHub PR number to review each element or function. Provides interactive, dependency-ordered code review walkthroughs with actionable insights.
 ---
 
 # Summarize Review Assistant
