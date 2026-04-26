@@ -56,19 +56,49 @@ let parseDate (s: string) =
   | false, _ -> Error $"Invalid date: {s}"
 ```
 
-**Swallowed Errors:**
-```fsharp
-// ⚠️ Suspicious: Error silently ignored
-try
-  riskyOperation()
-with _ -> ()
+**Possible Failure with Option and Result:**
+Functions like `Result.expect`, `Option.get`, `Option.unless`, etc. that unwrap the value without handling the error case should only be used when the error case should be unreachable:
 
-// ✅ Better: Log or propagate error
-try
-  riskyOperation()
-with ex ->
-  Log.error $"Operation failed: {ex.Message}"
-  reraise()
+```fsharp
+// ❌️ Suspicious: May throw exception if someone calls calculateStats with an empty list
+let calculateStats (xs: float list) = 
+  { 
+    Sum = List.sum xs
+    Average = List.tryAverage xs |> Option.unless "List is empty"
+    Min = List.tryMin xs |> Option.unless "List is empty"
+    Max = List.tryMax xs |> Option.unless "List is empty"
+  }
+
+let statsPerStation (rows: StationData list) =
+  rows
+  |> List.groupBy _.Station
+  |> List.map (fun (station, group) -> group |> List.map _.Value |> calculateStats)
+
+// ⚠️ Better: `None` case is unreachable, but still flag
+let statsPerStation (rows: StationData list) =
+  rows
+  |> List.groupBy _.Station
+  |> List.map (fun (station, group) -> 
+    let values = group |> List.map _.Value
+    {
+      Sum = List.sum values
+      Average = List.tryAverage values |> Option.unless "List.groupBy produced an empty group"
+      Min = List.tryMin values |> Option.unless "List.groupBy produced an empty group"
+      Max = List.tryMax values |> Option.unless "List.groupBy produced an empty group"
+    })
+
+// ✅ Best: Use SafetyFirst to avoid Option.unless altogether
+let statsPerStation (rows: StationData list) =
+  rows
+  |> List.group _.Station
+  |> List.map (fun (station, group) -> 
+    let values = group |> List.NonEmpty.map _.Value
+    {
+      Sum = List.NonEmpty.sum values
+      Average = List.NonEmpty.average values
+      Min = List.NonEmpty.min values
+      Max = List.NonEmpty.max values
+    })
 ```
 
 **Missing Validation:**
@@ -123,17 +153,6 @@ let! allOrders = getOrdersForUsers userIds  // 1 query
 - Lack of memoization for pure functions
 - Unnecessary allocations in hot paths
 
-**Resource Leaks:**
-```fsharp
-// ⚠️ Suspicious: May not dispose
-let stream = File.OpenRead(path)
-processStream stream
-
-// ✅ Better: Ensure disposal
-use stream = File.OpenRead(path)
-processStream stream
-```
-
 **Unbounded Growth:**
 - Caches without eviction policies
 - Collections that grow indefinitely
@@ -142,86 +161,12 @@ processStream stream
 
 ### 5. Logic Errors
 
-**Off-by-One Errors:**
-```fsharp
-// ⚠️ Suspicious: May access index out of bounds
-for i in 0..arr.Length do
-  process arr.[i]
+- Off-by-One Errors
+- Floating Point Equality
+- Boolean Logic Errors
+- Timezone Issues
 
-// ✅ Correct: Length - 1
-for i in 0..arr.Length-1 do
-  process arr.[i]
-```
-
-**Incorrect Comparisons:**
-```fsharp
-// ⚠️ Suspicious: Floating point equality
-if price = 19.99 then ...
-
-// ✅ Better: Tolerance-based comparison
-if abs(price - 19.99) < 0.01 then ...
-```
-
-**Boolean Logic Errors:**
-```fsharp
-// ⚠️ Suspicious: Should this be OR?
-if hasPermission && isEnabled then ...
-
-// Verify: Does user need both, or just one?
-```
-
-**Timezone Issues:**
-- Using DateTime instead of NodaTime
-- Mixing local and UTC times
-- Incorrect timezone conversions
-- Not accounting for DST changes
-
-**Getting the "days" component of a normalized duration instead of the total number of days:**
-- Using NodaTime `(dateA - dateB).Days` instead of `Period.Between(dateB, dateA, PeriodUnits.Days).Days`
-
-### 6. Breaking Changes
-
-**Signature Changes:**
-```fsharp
-// Before:
-let processData (input: string) : Result<Data, Error> = ...
-
-// After: ⚠️ Breaking change
-let processData (input: string) (config: Config) : Result<Data, Error> = ...
-```
-
-**Type Changes:**
-```fsharp
-// Before:
-type Status = Active | Inactive
-
-// After: ⚠️ Breaking change - removed case
-type Status = Active
-```
-
-**Behavioral Changes:**
-- Function now throws where it didn't before
-- Different default values
-- Changed ordering or sorting
-- Modified validation rules
-
-### 7. Code Quality Issues
-
-**Complex Conditionals:**
-```fsharp
-// ⚠️ Suspicious: Hard to understand
-if (user.Role = "admin" || user.Role = "moderator") &&
-   (user.Permissions.Contains("write") || user.IsOwner) &&
-   not user.IsSuspended && user.EmailVerified then
-  // ...
-
-// ✅ Better: Extract to named functions
-let canModifyContent user =
-  let hasModeratorRole = user.Role = "admin" || user.Role = "moderator"
-  let hasWriteAccess = user.Permissions.Contains("write") || user.IsOwner
-  let isAccountValid = not user.IsSuspended && user.EmailVerified
-  hasModeratorRole && hasWriteAccess && isAccountValid
-```
+### 6. Code Quality Issues
 
 **Deep Nesting:**
 - More than 3-4 levels of nesting
@@ -242,7 +187,7 @@ let secondsInDay = 86400
 let secondsInDay = 24 * 60 * 60
 ```
 
-### 8. Testing Concerns
+### 7. Testing Concerns
 
 **Missing Test Coverage:**
 - New functionality without tests
@@ -400,20 +345,14 @@ with open('file.txt') as f:
 - Array access without length check
 - Dictionary lookup without containment check
 
-**Integer Overflow:**
-- Arithmetic without overflow checking
-- Counter increments without bounds
-- Date/time arithmetic edge cases
-
 ## Prioritization Guidelines
 
 ### High Priority (Must Review Carefully)
 
 1. **Security vulnerabilities** - Could lead to data breaches
 2. **Data corruption risks** - Could lose or corrupt data
-3. **Breaking changes** - Will break existing code/APIs
-4. **Critical business logic** - Core functionality changes
-5. **Authentication/authorization** - Access control changes
+3. **Critical business logic** - Core functionality changes
+4. **Authentication/authorization** - Access control changes
 
 ### Medium Priority (Should Review)
 
@@ -481,43 +420,6 @@ async { do! backgroundWork() } |> Async.Start  // No error handling
 - Minimum/maximum values
 - Null/None values
 - Special characters in strings
-
-## Examples from Real Reviews
-
-### Example 1: Cache Implementation
-
-**Suspicious items:**
-- No maximum cache size - unbounded memory growth
-- No thread safety on eviction - race condition
-- TTL hardcoded - should be configurable
-- No cache invalidation on updates - stale data risk
-
-**Priority areas:**
-- `CacheManager.fs:evictExpired` - Thread safety critical
-- `DataAssembly.fs:retrieveFromCache` - Verify error handling doesn't skip cache population
-
-### Example 2: Validation Refactoring
-
-**Suspicious items:**
-- Breaking change to `validateInput` signature - check all callers
-- New error types - ensure all are handled in match expressions
-- Validation now returns list of errors - UI may not handle multiple errors
-
-**Priority areas:**
-- `Validation.fs:validateAll` - Ensure error accumulation works correctly
-- All call sites of `validateInput` - Verify updated to handle new signature
-
-### Example 3: Database Migration
-
-**Suspicious items:**
-- No rollback script provided
-- Migration modifies existing data - backup required
-- Large table modification - may lock table during migration
-- Default value for new column - may not be appropriate for all rows
-
-**Priority areas:**
-- `Migration.fs:migrateUserPreferences` - Data transformation logic must be correct
-- Review database transaction handling - ensure atomicity
 
 ## Summary
 
