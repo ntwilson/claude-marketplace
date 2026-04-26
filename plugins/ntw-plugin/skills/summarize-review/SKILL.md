@@ -12,9 +12,8 @@ This skill provides a multi-section, layered code review that starts with high-l
 Walk through a review in four focused sections — each interactive and expandable — rather than element by element:
 
 1. **Overview** — summary, architecture, and data flow all in one place; drill into any of the three on demand
-2. **File-by-file breakdown** — per-file summaries, with optional per-function detail
-3. **Error analysis** — where errors originate and how they propagate
-4. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
+2. **Architecture breakdown** — describe new types, per-file summaries, with optional per-function detail
+3. **Code smells / suspicious items** — language-specific concerns and anything noteworthy
 
 ## Input Formats
 
@@ -69,7 +68,7 @@ Use dependency order throughout:
 
 ### Step 5: Pre-analyze Everything
 
-Before producing any output, fully analyze the changes across all files to prepare all four sections. Specifically:
+Before producing any output, fully analyze the changes across all files to prepare all sections. Specifically:
 
 - Understand the overall purpose and scope
 - Identify architectural patterns in new/changed code
@@ -85,82 +84,50 @@ This pre-analysis ensures each section is complete and coherent when presented.
 
 ## Section 1: Overview
 
-Present all three subsections concisely together:
+Present all subsections concisely together:
 
-1. **Summary** — 1–5 sentences describing the entire changeset's purpose, scope, and key impact
-2. **Architecture** — 2–5 sentences or a short bulleted list describing new/changed structure; omit (and say so) if the changes are purely behavioral with no structural changes
-3. **Data flow** — 2–5 sentences or a short bulleted trace of where data enters, how it is transformed, and where it exits
-
+1. **Summary** — 1–2 paragraphs describing the entire changeset's purpose, scope, and key impact
+2. **Architecture** — 1-3 paragraphs or a short bulleted list describing new/changed structure; omit (and say so) if the changes are purely behavioral with no structural changes
 Then stop and prompt:
 
 ```
-Say **more summary**, **more architecture**, or **more data flow** for deeper detail on any of these, or **next** to move on to the file-by-file breakdown.
+Ask questions for deeper detail on any of these, or **next** to move on to the architecture breakdown.
 ```
-
-**If the user says "more [topic]":** Expand that subsection to approximately twice its previous length. Add specifics relevant to that topic. Re-show all three subsections (updated subsection in full, others unchanged) and re-show the prompt.
-
-**If the user says "more" (no topic specified):** Expand all three subsections simultaneously, each to approximately twice their previous length.
-
-**Ceiling rule:** If the next doubling of a subsection would produce output comparable in length to the actual diff or changed code itself, print the relevant code/diff directly instead. A summary longer than what it summarizes is not a summary.
 
 **If the user asks questions:** Answer them, then re-show the prompt.
 
 ---
 
-## Section 2: File-by-File Breakdown
+## Section 2: Architecture Breakdown
 
-Walk through each changed file **one at a time** in dependency order (from Step 4). For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
+Present any new data structures that were introduced by the changes. Then give an overview of each module added or changed, including the functions that are part of the PR. Then present a visualization of the call graph for the changed code, showing how functions relate to each other across files. 
+
+Then stop and propmt:
+
+```
+Ask questions for deeper detail on any of these, or **next** to move on to the module breakdown.
+```
+
+Walk through each changed file **one at a time** moving up from the bottom of the call graph. For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
 
 ### File summary format:
 
 ```markdown
 ### `path/to/file.ext` _(N review comments)_
 
-[2–4 sentences: what changed in this file, what role it plays, and any notable details]
+[what changed in this file, what role it plays, and any notable details]
 ```
-
-Omit the comment count if there are no review comments on the file, or if the review was not for a PR.
-
-After each file summary, the prompt depends on whether there are review comments on the file:
-
-**With review comments:**
-```
-Say **comments** to see the review comments on this file, **more** for a function-by-function breakdown, or **next** to move on to the next file.
-```
-
-**Without review comments:**
-```
-Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
-```
-
-**If the user says "comments":** Display all inline review comments for the file, grouped by reviewer. Format each comment as:
+Then display all inline review comments for the file, grouped by reviewer. Format each comment as:
 
 ```markdown
-**@username** on line N:
+**@username** on [function or type]:
 > [comment body]
 ```
 
-After showing comments, re-show the current prompt (replacing "comments" with "more" if comments have already been shown):
+Then stop and prompt:
 
 ```
-Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
-```
-
-**If the user says "more":** Break the file down function by function (or logical block by block for non-function-oriented files). Present functions **one at a time**. For each function or block that changed, show:
-- The function/block name
-- A 1–3 sentence description of what it does and what changed
-- **For PR reviews:** Any inline review comments whose line falls within the function, formatted the same as above, immediately after the function description
-
-After each function (except the last), prompt:
-
-```
-Say **next** to see the next function, or ask questions about this one.
-```
-
-After the last function in the file, prompt:
-
-```
-Say **next** to move on to the next file.
+Ask questions for deeper details of this file, or **next** to move on to the next file.
 ```
 
 **If the user asks questions:** Answer them, then re-show the current prompt.
@@ -171,73 +138,13 @@ After the last file, prompt:
 Say **next** to move on to error analysis.
 ```
 
----
+## Section 3: Suspicious Items and Noteworthy Concerns
 
-## Section 3: Error Analysis
-
-Identify and explain errors and failure conditions in the changed code. Present error origins **one at a time**, waiting for the user between each. After all origins, present the propagation summary.
-
-### 3a: Error Origins
-
-For each place in the changed code where an error or failure condition can arise, show:
-- The code location (file and function/line)
-- A brief excerpt of the relevant code
-- What error or failure condition can occur there
-
-Focus on typed errors and explicit failure cases, such as:
-- `Error` or `Result` types in F# (e.g., `Error "..."`, `Result.Error`)
-- `Left` or `throwError` in PureScript (e.g., `Left err`, `throwError`, `ExceptT`)
-- `raise`/`throw`/`Exception` in Python, TypeScript, etc.
-- Functions that can return `None`/`null`/`Nothing` in failure cases
-- Functions known to throw on invalid input (see language-specific lists below)
-
-### 3b: Error Propagation
-
-After all error origins have been presented, explain:
-- How errors flow upward through the call chain
-- Whether errors are caught, handled, or re-raised at any point
-- Whether errors are aggregated (e.g., collecting multiple validation errors into a list)
-- Whether any errors are silently swallowed
-
-### Format for each error origin:
-
-```markdown
-#### `functionName` — `path/to/file.ext`
-
-\`\`\`[language]
-[relevant code excerpt]
-\`\`\`
-
-[1-3 sentences: what can go wrong here and under what conditions]
-```
-
-After each error origin, prompt:
-
-```
-Say **next** to see the next error, or ask questions about this one.
-```
-
-After the last error origin, present the propagation summary, then stop and prompt:
-
-```
-Feel free to ask questions about any of these errors, or say **next** to move on to code smells.
-```
-
-Answer any questions the user asks, then re-show the prompt until the user says "next".
-
-If no error origins are found, say so, skip the propagation summary, and prompt:
-
-```
-Say **next** to move on to code smells.
-```
-
----
-
-## Section 4: Code Smells and Suspicious Items
-
-Present language-specific code smells and any other suspicious or problematic code found in the changed code. Present items **one at a time**, waiting for the user between each.
+Present code smells and any other suspicious or problematic code found in the changed code. Present items **one at a time**, waiting for the user between each.
 
 ### What to Flag
+
+**Anything that _you_ find suspicious or noteworthy according to your judgment**
 
 **Language-specific items (always flag):**
 
@@ -248,7 +155,7 @@ Present language-specific code smells and any other suspicious or problematic co
   - `Array.head`, `Array.tail`, `Array.last`, `Array.reduce`, `Array.item`, `Array.exactlyOne`
   - `List.head`, `List.tail`, `List.last`, `List.reduce`, `List.item`, `List.exactlyOne`
   - `Seq.head`, `Seq.last`, `Seq.reduce`, `Seq.item`, `Seq.exactlyOne`
-  - `Map.find`, `Map.item`, `Option.get`, `Result.get`
+  - `Map.find`, `Map.item`, `Option.get`, `Result.get`, `Option.unless`, `Result.expect`
   - `dict.[key]` indexer access
   - `int`/`float` conversions that throw on failure
 - Non-deterministic operations outside `io { }`: `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`, `DateTimeOffset.UtcNow`, `System.Random`, `Guid.NewGuid()`, `Environment.GetEnvironmentVariable`, `Stopwatch`
@@ -306,138 +213,11 @@ The user can ask questions at any prompt — answer them and then re-show the cu
 
 ---
 
-## Output Format Summary
-
-### Section 1: Overview
-
-```markdown
-# Code Review Summary
-
-## Summary
-
-[1–5 sentence summary]
-
-## Architecture
-
-[2–5 sentence or bulleted architectural summary — or "No structural changes." if purely behavioral]
-
-## Data Flow
-
-[2–5 sentence or bulleted data flow trace]
-
-Say **more summary**, **more architecture**, or **more data flow** for deeper detail on any of these, or **next** to move on to the file-by-file breakdown.
-```
-
-### Section 2: File-by-File Breakdown (one file at a time, in dependency order)
-
-```markdown
-## File-by-File Breakdown
-
-### `path/to/file.ext` _(3 review comments)_
-
-[2–4 sentence file summary]
-
-Say **comments** to see the review comments on this file, **more** for a function-by-function breakdown, or **next** to move on to the next file.
-```
-
-On "comments":
-
-```markdown
-**@alice** on line 42:
-> [comment body]
-
-**@bob** on line 57:
-> [comment body]
-
-Say **more** for a function-by-function breakdown of this file, or **next** to move on to the next file.
-```
-
-On "more" (first function):
-
-```markdown
-#### `functionName`
-
-[1–3 sentence description]
-
-**@alice** on line 42:
-> [comment body]
-
-Say **next** to see the next function, or ask questions about this one.
-```
-
-On "next" (subsequent functions, same pattern until the last):
-
-```markdown
-#### `anotherFunction`
-
-[1–3 sentence description]
-
-Say **next** to see the next function, or ask questions about this one.
-```
-
-After the last function in the file:
-
-```markdown
-#### `lastFunction`
-
-[1–3 sentence description]
-
-Say **next** to move on to the next file.
-```
-
-### Section 3: Error Analysis (one at a time)
-
-```markdown
-## Error Analysis
-
-#### `functionName` — `path/to/file.ext`
-\`\`\`[language]
-[code excerpt]
-\`\`\`
-[explanation]
-
-Say **next** to see the next error, or ask questions about this one.
-```
-
-After all origins, present propagation summary then prompt:
-
-```markdown
-### Error Propagation
-
-[Explanation of how errors flow, are handled, or are swallowed]
-
-Feel free to ask questions about any of these errors, or say **next** to move on to code smells.
-```
-
-### Section 4: Code Smells (one at a time)
-
-```markdown
-## Code Smells and Suspicious Items
-
-⚠️ **[Category]** — `path/to/file.ext` (`functionName`)
-
-\`\`\`[language]
-[code excerpt]
-\`\`\`
-
-[explanation]
-
-Say **next** to see the next item, or ask questions about this one.
-```
-
-After all items:
-
-```markdown
-Review complete.
-```
-
----
-
 ## Additional Resources
 
 ### Reference Files
 
-- **`references/review-focus-patterns.md`** — Detailed patterns for security issues, bugs, performance problems, and language-specific suspicious items
+- **`references/review-focus-patterns.md`** — Detailed patterns for Section 3: Suspicious Items and Noteworthy Concerns
 - **`references/dependency-analysis-patterns.md`** — Strategies for determining dependency order across languages
 
 ### Helper Scripts
