@@ -144,6 +144,8 @@ Present code smells and any other suspicious or problematic code found in the ch
 
 ### What to Flag
 
+**Anything that _you_ find suspicious or noteworthy according to your judgment**
+
 **Language-specific items (always flag):**
 
 **F# files (`.fs`):**

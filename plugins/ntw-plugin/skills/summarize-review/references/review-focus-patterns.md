@@ -207,6 +207,10 @@ let secondsInDay = 24 * 60 * 60
 - Brittle tests (too tightly coupled to implementation)
 - Non-deterministic tests (flaky tests)
 
+### 8. Your Best Judgment
+- Anything that you think is suspicious enough to be worth bringing up in review
+- Use your best judgment
+
 ## Language-Specific Patterns
 
 ### F# Specific
