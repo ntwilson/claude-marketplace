@@ -1,6 +1,6 @@
 # Review Focus Patterns
 
-This reference provides detailed patterns for identifying suspicious code and areas requiring closer attention during code reviews. If you have access to the fsharp-conventions skill, also flag any violations of the conventions.
+This reference provides detailed patterns for identifying suspicious code and areas requiring closer attention during code reviews. If you have access to the skills fsharp-conventions, python-conventions, or purescript-conventions, also flag any violations of the conventions.
 
 ## Categories of Focus Areas
 
