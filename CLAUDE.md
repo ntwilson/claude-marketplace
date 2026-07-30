@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Claude Code plugin marketplace. The marketplace manifest is `.claude-plugin/marketplace.json`, which lists available plugins. Each plugin lives under `plugins/<plugin-name>/` with its own `.claude-plugin/plugin.json` manifest and a `skills/` directory containing one or more skills.
 
-Currently contains one plugin (`ntw-plugin`) with one skill (`help-review`).
+Currently contains one plugin (`ntw-plugin`) with two skills: `summarize-review` (layered indexed review report) and `detailed-review` (chunk-by-chunk walkthrough in implementation order).
+
+Both skills share `plugins/ntw-plugin/shared/`, referenced from a SKILL.md as `../../shared/`. It holds the PR-interaction protocol (`references/pr-interaction.md` — deep links, line-number tracking, comment/suggestion queueing and submission) and the `gh` helper scripts. Anything used by both skills belongs there rather than duplicated; `references/review-focus-patterns.md` stays per-skill because the two copies have intentionally diverged.
 
 ## Architecture
 

@@ -15,47 +15,66 @@ Install these via
 
 ## Skills
 
-### help-review
+Both skills read the same inputs — a PR number, a PR number with an alternative base, or a base/head branch pair — and both write a markdown report under the repo's `.claude/` directory, then answer follow-up questions by index. **Invoked with no input at all, they resolve the open PR for the branch you're on** and review that, so the common case is just `/summarize-review` or `/detailed-review` with nothing after it. They differ in how they slice the changes: `summarize-review` by file and declaration, `detailed-review` by edit-sized chunk in implementation order.
 
-Provides interactive, dependency-ordered code review walkthroughs.
+Both also share the same PR-interaction capabilities, defined once in `plugins/ntw-plugin/shared/references/pr-interaction.md`:
 
-**Features:**
-- Two-phase interactive review: overview first, then element-by-element walkthrough
-- Dependency ordering (callees before callers) for file order
-- Inline diffs for small changes (≤15 lines)
-- Suspicious items surfaced inline at the relevant code element
-- Ask questions at any point during the walkthrough
-- Multi-format input: PR numbers, PR with custom base, or branch comparisons
-- Cross-platform PowerShell scripts
+- **Deep links** — every indexed item links to its exact line on the PR's Files tab
+- **Inline comments** — dictate one against an index; it queues locally and posts as a single review
+- **Suggested changes** — describe a fix in prose and get the real replacement code as an applicable GitHub suggestion, shown for your approval before it queues
+
+### summarize-review
+
+A layered review report you drill into by index.
+
+**Contents:**
+- Overview: summary and architecture, including a call-graph view of the changed code
+- Suspicious items and noteworthy concerns, each indexed `#N`
+- File-by-file breakdown in dependency order, each file indexed `#N` with its changed declarations sub-indexed `#N.M`
+- Every index deep-linked to its exact line on the PR's Files tab
+- Inline PR review comments attached to the file they were left on
 
 **Usage:**
 ```
-"Help review PR 123"
-"Review PR 456 against develop"
-"Review changes from main to feature-branch"
+"Summarize PR 123"
+"Summarize review of PR 456 against develop"
+"Give me a layered summary of main to feature-branch"
 ```
 
-**Phase 1 — Overview (shown immediately):**
-- 1-5 sentence summary of all changes
-- List of changed files with per-file summaries
+Then: `"tell me more about #19"`, `"is #3 actually a bug?"`, `"explain #12.2"`, `"#7 comment: this will throw on an empty list"`, `"#12.2 suggest: use tryHead instead"`.
 
-**Phase 2 — Walkthrough (on "next"):**
-- One code element at a time (function, type, etc.)
-- Diff printed inline if ≤15 lines
-- Suspicious items flagged at the relevant element
-- Ask questions at any step, say "next" to continue
+See [plugins/ntw-plugin/skills/summarize-review/](plugins/ntw-plugin/skills/summarize-review/).
 
-**Input formats:**
-1. PR number only: `"Review PR 123"`
-2. PR with alternative base: `"Review PR 123 against develop"`
-3. Branch comparison: `"Review changes from main to feature-auth"`
+### detailed-review
 
-**Requirements:**
+Replays a finished changeset as if Claude Code had proposed it edit by edit in Manual Mode.
+
+**Contents:**
+- The changeset split into edit-sized chunks — 1–2 functions for substantial logic, trivia grouped generously across files
+- Ordered the way the change would actually have been implemented: foundations → leaf logic → callers → wiring → tests → trivia
+- Each chunk indexed `#N` with its diff, a 1–2 sentence justification, any concerns, and any inline review comments landing in it
+- A deep link on every chunk to its exact line on the PR's Files tab
+- An indexed plan list up front and a wrap-up at the end
+
+**Posting comments back:** dictate an inline comment against a chunk (`"#7 comment: this timer can be GC'd"`) and it queues locally. Say `"submit the review"` and all queued comments go up as a single review — one notification, dry-run and confirmation first.
+
+**Suggested changes:** describe a fix in prose (`"#7 suggest: hold the timer so it can't be collected"`) and the actual replacement code gets written for you as a GitHub suggestion block the author can apply with one click. The code is built against the exact text and indentation of the reviewed commit, so it applies cleanly. Since it's generated code, it's shown to you for approval first and only joins the queue once you say so.
+
+**Usage:**
+```
+"Walk me through PR 123"
+"Review PR 456 chunk by chunk"
+"Show me main to feature-branch in implementation order"
+```
+
+Then: `"#7 why is the TTL per-call?"`, `"#12 is this actually a race?"`, `"compare #4 and #6"`.
+
+See [plugins/ntw-plugin/skills/detailed-review/](plugins/ntw-plugin/skills/detailed-review/).
+
+**Requirements (both skills):**
 - GitHub CLI (`gh`) for PR reviews
 - Git for branch comparisons
 - PowerShell Core (for helper scripts)
-
-See [plugins/ntw-plugin/skills/help-review/](plugins/ntw-plugin/skills/help-review/) for detailed documentation.
 
 ## Adding More Skills
 
@@ -100,12 +119,19 @@ claude-marketplace/
 │   └── ntw-plugin/              # A plugin in the marketplace
 │       ├── .claude-plugin/
 │       │   └── plugin.json      # Plugin manifest
+│       ├── shared/                  # Shared by both review skills
+│       │   ├── references/
+│       │   │   ├── pr-interaction.md               # Links, comments, suggestions, submitting
+│       │   │   └── dependency-analysis-patterns.md
+│       │   └── scripts/             # gh/PR helper scripts (PowerShell Core)
 │       └── skills/
-│           └── help-review/     # Code review skill
-│               ├── SKILL.md     # Main skill file
-│               ├── examples/    # Example outputs
-│               ├── references/  # Detailed patterns
-│               └── scripts/     # Helper scripts
+│           ├── summarize-review/    # Layered, indexed review report
+│           │   ├── SKILL.md         # Main skill file
+│           │   └── references/      # Skill-specific patterns
+│           └── detailed-review/     # Chunk-by-chunk implementation-order walkthrough
+│               ├── SKILL.md
+│               ├── examples/        # Example output document
+│               └── references/
 ├── README.md
 └── LICENSE
 ```
