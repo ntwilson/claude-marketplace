@@ -73,7 +73,7 @@ Before producing any output, fully analyze the changes across all files to prepa
 - Understand the overall purpose and scope
 - Identify architectural patterns in new/changed code
 - Collect all language-specific suspicious items and any other noteworthy concerns
-- Summarize each changed file and its key functions
+- Summarize each changed file, and separately summarize each added/edited leaf declaration (type/class/function/method) within it for the sub-indexed breakdown in Section 3
 - **For PR reviews:** Group inline review comments by file and by function/line range, so each file and function knows how many comments it has and what they say
 
 This pre-analysis ensures the report is complete and coherent when written.
@@ -82,7 +82,7 @@ This pre-analysis ensures the report is complete and coherent when written.
 
 Write the entire report to a markdown file in one pass. Do not pause between sections. Write it under the repo's `.claude/` directory: name the file `<repo-root>/.claude/pr-<PR_NUMBER>-review.md` for a PR, or `<repo-root>/.claude/review-<BASE>-<HEAD>.md` for a branch comparison. The `Write` tool creates the `.claude/` directory if it does not already exist. After writing it, tell the user the path and invite follow-up questions by index number (see "Answering Follow-up Questions").
 
-**Index numbering:** Maintain a single sequential counter across the whole report. Assign the next index number to each suspicious item (Section 2) and then to each file (Section 3), continuing the same sequence. Each index appears once and unambiguously identifies one item. Render every index as a bold `#N` at the start of the item's heading so it is easy to scan and reference.
+**Index numbering:** Maintain a single sequential counter across the whole report. Assign the next index number to each suspicious item (Section 2) and then to each file (Section 3), continuing the same sequence. Each index appears once and unambiguously identifies one item. Render every index as a bold `#N` at the start of the item's heading so it is easy to scan and reference. In Section 3, each added/edited leaf declaration within a file gets a **sub-index** derived from its file's index (`#N.1`, `#N.2`, …); these do not consume top-level counter numbers.
 
 The report has three sections in this order.
 
@@ -154,13 +154,23 @@ If no suspicious items are found, write a short note saying so under the section
 
 Walk through each changed file in dependency order (from Step 4), moving up from the bottom of the call graph. Assign each file the next index number. For each file, provide a concise summary of what changed and why it matters in the context of the overall PR.
 
+After the file summary, add a 1–2 sentence summary of each type/class/function/method that was added or edited in that file, each with a **sub-index** derived from the file's index (e.g. if the file is `#12`, its edited members are `#12.1`, `#12.2`, `#12.3`, …, numbered in the order they appear in the file). Only the changed members get an entry — skip members the PR didn't touch.
+
+**Work at the lowest level only.** Summarize the innermost (leaf) declarations that were changed, not their enclosing scopes. For example, if a changed file contains a module that adds a new class with three new methods, add sub-indexed summaries for the three methods only — not for the module or the class. If a leaf declaration has no meaningful enclosing scope (e.g. a top-level function), summarize the function itself.
+
 ### File summary format:
 
 ```markdown
 ### #N — `path/to/file.ext` _(M review comments)_
 
 [what changed in this file, what role it plays, and any notable details]
+
+- **#N.1** — `memberName` — [1–2 sentence summary of what this member does / how it changed]
+- **#N.2** — `memberName` — [1–2 sentence summary]
+- …
 ```
+
+If a file has no added/edited leaf declarations (e.g. only config or whitespace changes), omit the sub-index list and note that briefly.
 
 Then display all inline review comments for the file, grouped by reviewer. Format each comment as:
 
@@ -173,7 +183,7 @@ Then display all inline review comments for the file, grouped by reviewer. Forma
 
 ## Answering Follow-up Questions
 
-After the report is written, the user may ask questions that reference index numbers (e.g. "why is #7 a problem?", "explain #19", "is #3 actually a bug?"). Resolve each `#N` to the item that was assigned that index in the report and answer with the full context you gathered during pre-analysis. The user may reference multiple indexes in one question. Answer directly; do not re-emit the whole report.
+After the report is written, the user may ask questions that reference index numbers (e.g. "why is #7 a problem?", "explain #19", "is #3 actually a bug?"). References may be top-level (`#N`) or sub-indexes for a specific declaration (`#N.M`, e.g. "tell me more about #12.2"). Resolve each reference to the item that was assigned that index in the report and answer with the full context you gathered during pre-analysis. The user may reference multiple indexes in one question. Answer directly; do not re-emit the whole report.
 
 ---
 
@@ -200,6 +210,6 @@ After the report is written, the user may ask questions that reference index num
 5. **Write report** → Write the full report to a markdown file under the repo's `.claude/` directory in one pass, with a single sequential index counter spanning Section 2 (suspicious items) then Section 3 (files):
    - **Section 1** → Overview (summary + architecture), not indexed
    - **Section 2** → Suspicious items and noteworthy concerns, each indexed `#N`
-   - **Section 3** → File-by-file breakdown **in dependency order** (from Step 4), each file indexed `#N`
+   - **Section 3** → File-by-file breakdown **in dependency order** (from Step 4), each file indexed `#N`, with each added/edited leaf declaration sub-indexed `#N.M` and given a 1–2 sentence summary
 6. **Report the path** → Tell the user where the file was written and invite follow-up questions by index number
 7. **Answer follow-ups** → Resolve `#N` references to the corresponding indexed items
